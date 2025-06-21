@@ -73,19 +73,34 @@ npm run build
   "mcpServers": {
     "excel-csv": {
       "command": "node",
-      "args": ["C:\\path\\to\\excel-csv-mcp\\dist\\index.js"]
+      "args": ["C:\\path\\to\\excel-mcp\\dist\\index.js"]
     }
   }
 }
 ```
 
-**🤖 With AI Providers (Recommended):**
+**🤖 With AI Providers (Two Options):**
+
+**Option A: Using .env file (Recommended)**
 ```json
 {
   "mcpServers": {
     "excel-csv": {
       "command": "node",
-      "args": ["C:\\path\\to\\excel-csv-mcp\\dist\\index.js"],
+      "args": ["C:\\path\\to\\excel-mcp\\dist\\index.js"]
+    }
+  }
+}
+```
+*Then create a .env file in your project directory with your API keys (see Step 2 below).*
+
+**Option B: Direct configuration**
+```json
+{
+  "mcpServers": {
+    "excel-csv": {
+      "command": "node",
+      "args": ["C:\\path\\to\\excel-mcp\\dist\\index.js"],
       "env": {
         "ANTHROPIC_API_KEY": "your-anthropic-key",
         "OPENAI_API_KEY": "your-openai-key",

@@ -96,37 +96,6 @@ npm run build
 }
 ```
 
-### 🐧 Claude Code (WSL Setup)
-
-**For Claude Code users on WSL, there are two setup methods:**
-
-**Method 1: Global Installation (Recommended)**
-```bash
-# 1. Install globally in WSL
-cd excel-csv-mcp
-npm install -g .
-
-# 2. Add to your .env file
-echo "ANTHROPIC_API_KEY=your-anthropic-key" >> .env
-echo "OPENAI_API_KEY=your-openai-key" >> .env
-echo "DEEPSEEK_API_KEY=your-deepseek-key" >> .env
-
-# 3. Configuration is automatic!
-# When you navigate to your project directory in Claude Code,
-# it automatically detects the .env file and configures the MCP server.
-# No manual configuration needed!
-```
-
-**Method 2: Manual Configuration (Advanced)**
-```bash
-# If you need to manually configure the MCP server in your project,
-# add this to your project's MCP configuration when Claude Code asks:
-
-# MCP Server Configuration:
-# Command: npx
-# Args: -y excel-csv-mcp
-# Type: stdio
-```
 
 ### Step 2: Configure Your AI Providers (The Fun Part!)
 This server is at its best when connected to an AI. All you need is an API key.

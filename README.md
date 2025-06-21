@@ -188,8 +188,6 @@ Now, when Claude Code asks for your MCP server configuration, you can use npx:
 
 The server will automatically detect the .env file in your project directory.
 
-> 📖 **Detailed Guide**: See [AI_PROVIDERS_GUIDE.md](./AI_PROVIDERS_GUIDE.md) for complete setup instructions
-
 ## 💡 Talk to Your Data: Usage Examples
 
 Once connected, you can perform powerful data operations using natural language.

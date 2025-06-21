@@ -14,6 +14,11 @@ import * as csvStringify from 'csv-stringify/sync';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 
+// AI and Formula Engine imports
+import { NLPProcessor } from './ai/nlp-processor.js';
+import { parseFormula } from './formula/parser.js';
+import { FormulaEvaluator, WorkbookContext } from './formula/evaluator.js';
+
 interface CellAddress {
   row: number;
   col: number;
@@ -21,6 +26,8 @@ interface CellAddress {
 
 class ExcelCSVServer {
   private server: Server;
+  private nlpProcessor: NLPProcessor;
+  private formulaEvaluator: FormulaEvaluator;
 
   constructor() {
     this.server = new Server(
@@ -34,6 +41,10 @@ class ExcelCSVServer {
         },
       }
     );
+
+    // Initialize AI and Formula engines
+    this.nlpProcessor = new NLPProcessor();
+    this.formulaEvaluator = new FormulaEvaluator();
 
     this.setupHandlers();
   }
@@ -410,6 +421,100 @@ class ExcelCSVServer {
             required: ['analysisType', 'sourceFile', 'outputFile', 'analysisParams'],
           },
         },
+
+        // AI-Powered Formula & Natural Language Tools
+        {
+          name: 'evaluate_formula',
+          description: 'Evaluate an Excel formula with given context',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              formula: {
+                type: 'string',
+                description: 'Excel formula to evaluate (e.g., "=SUM(A1:A10)", "=VLOOKUP(B2,C:D,2,FALSE)")',
+              },
+              context: {
+                type: 'object',
+                description: 'Cell values and ranges for formula evaluation (optional)',
+                additionalProperties: true,
+              },
+            },
+            required: ['formula'],
+          },
+        },
+        {
+          name: 'parse_natural_language',
+          description: 'Convert natural language to Excel formula or command',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: 'Natural language query (e.g., "sum all sales", "find duplicates", "average by category")',
+              },
+              filePath: {
+                type: 'string',
+                description: 'Path to file for context (optional)',
+              },
+              provider: {
+                type: 'string',
+                description: 'Preferred AI provider: anthropic, openai, deepseek, gemini, or local (optional)',
+                enum: ['anthropic', 'openai', 'deepseek', 'gemini', 'local'],
+              },
+            },
+            required: ['query'],
+          },
+        },
+        {
+          name: 'explain_formula',
+          description: 'Explain what an Excel formula does in plain English',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              formula: {
+                type: 'string',
+                description: 'Excel formula to explain (e.g., "=VLOOKUP(A2,B:C,2,FALSE)")',
+              },
+              provider: {
+                type: 'string',
+                description: 'Preferred AI provider: anthropic, openai, deepseek, gemini, or local (optional)',
+                enum: ['anthropic', 'openai', 'deepseek', 'gemini', 'local'],
+              },
+            },
+            required: ['formula'],
+          },
+        },
+        {
+          name: 'ai_provider_status',
+          description: 'Check status of available AI providers',
+          inputSchema: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        {
+          name: 'smart_data_analysis',
+          description: 'AI-powered analysis suggestions for your data',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePath: {
+                type: 'string',
+                description: 'Path to the CSV or Excel file to analyze',
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name for Excel files (optional)',
+              },
+              provider: {
+                type: 'string',
+                description: 'Preferred AI provider: anthropic, openai, deepseek, gemini, or local (optional)',
+                enum: ['anthropic', 'openai', 'deepseek', 'gemini', 'local'],
+              },
+            },
+            required: ['filePath'],
+          },
+        },
       ],
     }));
 
@@ -444,6 +549,19 @@ class ExcelCSVServer {
             return await this.writeFile(args);
           case 'export_analysis':
             return await this.exportAnalysis(args);
+
+          // AI-Powered Tools
+          case 'evaluate_formula':
+            return await this.evaluateFormula(args);
+          case 'parse_natural_language':
+            return await this.parseNaturalLanguage(args);
+          case 'explain_formula':
+            return await this.explainFormula(args);
+          case 'ai_provider_status':
+            return await this.getAIProviderStatus(args);
+          case 'smart_data_analysis':
+            return await this.smartDataAnalysis(args);
+
           default:
             throw new McpError(
               ErrorCode.MethodNotFound,
@@ -1182,10 +1300,303 @@ class ExcelCSVServer {
     };
   }
 
+  // AI-Powered Methods
+  private async evaluateFormula(args: any) {
+    const { formula, context = {} } = args;
+    
+    try {
+      // Parse the formula
+      const ast = parseFormula(formula);
+      
+      // Create a workbook context from the provided context
+      const workbookContext: WorkbookContext = {
+        getCellValue: (reference: string) => {
+          return context[reference] || 0;
+        },
+        getNamedRangeValue: (name: string) => {
+          return context[name] || 0;
+        },
+        getRangeValues: (range: string) => {
+          // Simple implementation - can be enhanced
+          return context[range] || [];
+        }
+      };
+      
+      // Evaluate the formula
+      const result = this.formulaEvaluator.evaluate(ast, workbookContext);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              formula,
+              result,
+              success: true
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              formula,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              success: false
+            }, null, 2),
+          },
+        ],
+      };
+    }
+  }
+
+  private async parseNaturalLanguage(args: any) {
+    const { query, filePath, provider } = args;
+    
+    try {
+      // Get file context if provided
+      let context = undefined;
+      if (filePath) {
+        try {
+          const data = await this.readFileContent(filePath);
+          context = {
+            headers: data[0],
+            rowCount: data.length,
+            columnCount: data[0]?.length || 0,
+            dataTypes: this.detectDataTypes(data),
+            activeCell: 'A1',
+            selectedRange: 'A1:A1'
+          };
+        } catch (error) {
+          // File context is optional, continue without it
+        }
+      }
+      
+      // Parse the natural language query
+      const result = await this.nlpProcessor.parseCommand(query, context, provider);
+      
+      // If it's a formula, also try to build the actual formula
+      if (result.type === 'formula') {
+        try {
+          const formulaResult = await this.nlpProcessor.buildFormula(query, context, provider);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  query,
+                  command: result,
+                  formula: formulaResult,
+                  success: true,
+                  provider: this.nlpProcessor.getActiveProvider()?.name || 'Local'
+                }, null, 2),
+              },
+            ],
+          };
+        } catch (formulaError) {
+          // Fallback to just the command result
+        }
+      }
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              query,
+              result,
+              success: true,
+              provider: this.nlpProcessor.getActiveProvider()?.name || 'Local'
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              query,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              success: false
+            }, null, 2),
+          },
+        ],
+      };
+    }
+  }
+
+  private async explainFormula(args: any) {
+    const { formula, provider } = args;
+    
+    try {
+      const explanation = await this.nlpProcessor.explainFormula(formula, provider);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              formula,
+              explanation,
+              success: true,
+              provider: this.nlpProcessor.getActiveProvider()?.name || 'Local'
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              formula,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              success: false
+            }, null, 2),
+          },
+        ],
+      };
+    }
+  }
+
+  private async getAIProviderStatus(args: any) {
+    try {
+      const providers = this.nlpProcessor.getAvailableProviders();
+      const activeProvider = this.nlpProcessor.getActiveProvider();
+      const healthStatus = await this.nlpProcessor.testProviders();
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              activeProvider,
+              availableProviders: providers,
+              healthStatus,
+              success: true
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: error instanceof Error ? error.message : 'Unknown error',
+              success: false
+            }, null, 2),
+          },
+        ],
+      };
+    }
+  }
+
+  private async smartDataAnalysis(args: any) {
+    const { filePath, sheet, provider } = args;
+    
+    try {
+      // Read the file
+      const data = await this.readFileContent(filePath, sheet);
+      
+      if (data.length === 0) {
+        throw new Error('File is empty');
+      }
+      
+      // Create context for AI analysis
+      const context = {
+        headers: data[0],
+        rowCount: data.length,
+        columnCount: data[0]?.length || 0,
+        dataTypes: this.detectDataTypes(data),
+        sampleData: data.slice(0, 6), // First 5 data rows + header
+        activeCell: 'A1',
+        selectedRange: 'A1:A1'
+      };
+      
+      // Generate AI suggestions
+      const suggestions = await this.nlpProcessor.suggestFormulas(context);
+      
+      // Get data profile for additional insights
+      const profile = await this.dataProfile({ filePath, sheet });
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              filePath,
+              context: {
+                headers: context.headers,
+                rowCount: context.rowCount,
+                columnCount: context.columnCount,
+                dataTypes: context.dataTypes
+              },
+              aiSuggestions: suggestions,
+              dataProfile: JSON.parse(profile.content[0].text),
+              success: true,
+              provider: this.nlpProcessor.getActiveProvider()?.name || 'Local'
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              filePath,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              success: false
+            }, null, 2),
+          },
+        ],
+      };
+    }
+  }
+
+  private detectDataTypes(data: any[][]): Record<string, 'number' | 'text' | 'date' | 'formula'> {
+    if (data.length < 2) return {};
+    
+    const headers = data[0];
+    const types: Record<string, 'number' | 'text' | 'date' | 'formula'> = {};
+    
+    for (let col = 0; col < headers.length; col++) {
+      const columnData = data.slice(1).map(row => row[col]).filter(val => val != null && val !== '');
+      
+      if (columnData.length === 0) {
+        types[headers[col]] = 'text';
+        continue;
+      }
+      
+      // Check if all values are numbers
+      const numericCount = columnData.filter(val => !isNaN(Number(val))).length;
+      const dateCount = columnData.filter(val => !isNaN(Date.parse(val))).length;
+      
+      if (numericCount === columnData.length) {
+        types[headers[col]] = 'number';
+      } else if (dateCount === columnData.length) {
+        types[headers[col]] = 'date';
+      } else {
+        types[headers[col]] = 'text';
+      }
+    }
+    
+    return types;
+  }
+
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('Excel/CSV MCP server running on stdio');
+    // console.error('Excel/CSV MCP server running on stdio');
   }
 }
 

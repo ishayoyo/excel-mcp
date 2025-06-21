@@ -39,7 +39,7 @@ export class AIManager {
   }
 
   async initialize(): Promise<void> {
-    console.log('🤖 Initializing AI providers...');
+    // console.log('🤖 Initializing AI providers...');
     
     // Initialize local provider first
     await this.localProvider.initialize();
@@ -59,20 +59,20 @@ export class AIManager {
           // Set as active if we don't have one yet
           if (!this.activeProvider) {
             this.activeProvider = provider;
-            console.log(`✅ Active AI provider: ${provider.getProviderName()}`);
+            // console.log(`✅ Active AI provider: ${provider.getProviderName()}`);
           } else {
-            console.log(`✅ Backup AI provider: ${provider.getProviderName()}`);
+            // console.log(`✅ Backup AI provider: ${provider.getProviderName()}`);
           }
         }
       } catch (error) {
-        console.warn(`❌ Failed to initialize ${providerConfig.type}:`, error);
+        // console.warn(`❌ Failed to initialize ${providerConfig.type}:`, error);
       }
     }
 
     // Fallback to local if no external providers work
     if (!this.activeProvider && this.config.fallbackToLocal) {
       this.activeProvider = this.localProvider;
-      console.log('⚠️ Using local fallback provider');
+      // console.log('⚠️ Using local fallback provider');
     }
 
     if (!this.activeProvider) {
@@ -128,7 +128,7 @@ export class AIManager {
         provider: provider.getProviderName()
       } as AIResponse & { provider: string };
     } catch (error) {
-      console.warn(`Provider ${provider.getProviderName()} failed:`, error);
+      // console.warn(`Provider ${provider.getProviderName()} failed:`, error);
 
       // Try fallback providers if enabled
       if (this.config.enableProviderSwitching) {
@@ -150,7 +150,7 @@ export class AIManager {
       }
 
       try {
-        console.log(`🔄 Trying fallback provider: ${provider.getProviderName()}`);
+        // console.log(`🔄 Trying fallback provider: ${provider.getProviderName()}`);
         const response = await provider.createCompletion(messages, options);
         
         // Update active provider if this one works
@@ -161,7 +161,7 @@ export class AIManager {
           provider: provider.getProviderName()
         } as AIResponse & { provider: string };
       } catch (error) {
-        console.warn(`Fallback provider ${provider.getProviderName()} also failed:`, error);
+        // console.warn(`Fallback provider ${provider.getProviderName()} also failed:`, error);
       }
     }
 
@@ -193,7 +193,7 @@ export class AIManager {
     }
 
     this.activeProvider = provider;
-    console.log(`🔄 Switched to provider: ${provider.getProviderName()}`);
+    // console.log(`🔄 Switched to provider: ${provider.getProviderName()}`);
     return true;
   }
 

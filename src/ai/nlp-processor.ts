@@ -35,10 +35,10 @@ export class NLPProcessor {
       
       const activeProvider = this.aiManager.getActiveProvider();
       if (activeProvider) {
-        console.log(`🤖 NLP Processor ready with ${activeProvider.name}`);
+        // console.log(`🤖 NLP Processor ready with ${activeProvider.name}`);
       }
     } catch (error) {
-      console.warn('AI Manager initialization failed, using local fallback:', error);
+      // console.warn('AI Manager initialization failed, using local fallback:', error);
       this.isAvailable = false;
     }
   }
@@ -61,7 +61,7 @@ export class NLPProcessor {
 
       return this.parseCommandResponse(response.content);
     } catch (error) {
-      console.error('Error parsing command:', error);
+      // console.error('Error parsing command:', error);
       return this.fallbackParser(text);
     }
   }
@@ -84,7 +84,7 @@ export class NLPProcessor {
 
       return this.parseFormulaResponse(response.content);
     } catch (error) {
-      console.error('Error building formula:', error);
+      // console.error('Error building formula:', error);
       return this.fallbackFormulaBuilder(description);
     }
   }
@@ -106,7 +106,7 @@ export class NLPProcessor {
 
       return response.content;
     } catch (error) {
-      console.error('Error explaining formula:', error);
+      // console.error('Error explaining formula:', error);
       return this.fallbackFormulaExplainer(formula);
     }
   }

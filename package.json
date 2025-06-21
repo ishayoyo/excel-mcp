@@ -32,21 +32,20 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.13.0",
     "@types/node": "^24.0.3",
     "@types/papaparse": "^5.3.16",
     "csv-parse": "^5.6.0",
     "csv-stringify": "^6.5.2",
+    "dotenv": "^16.5.0",
     "papaparse": "^5.5.3",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "xlsx": "^0.18.5"
   },
-  "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.13.0"
-  },
   "optionalDependencies": {
     "@anthropic-ai/sdk": "^0.32.0",
-    "openai": "^4.63.0",
-    "@google/generative-ai": "^0.21.0"
+    "@google/generative-ai": "^0.21.0",
+    "openai": "^4.104.0"
   }
 }

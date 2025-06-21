@@ -1,5 +1,7 @@
 # 📊 Excel/CSV MCP Server
 
+[![smithery badge](https://smithery.ai/badge/@ishayoyo/excel-mcp)](https://smithery.ai/server/@ishayoyo/excel-mcp)
+
 > **Supercharge Claude with spreadsheet superpowers!** 🚀
 
 A sleek MCP server that lets Claude read, analyze, and manipulate Excel & CSV files like a data wizard.
@@ -17,6 +19,15 @@ A sleek MCP server that lets Claude read, analyze, and manipulate Excel & CSV fi
 
 ## 🚀 Quick Start
 
+### Installing via Smithery
+
+To install Excel/CSV Data Science Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@ishayoyo/excel-mcp):
+
+```bash
+npx -y @smithery/cli install @ishayoyo/excel-mcp --client claude
+```
+
+### Manual Installation
 ```bash
 git clone <your-repo-url>
 cd excel-csv-mcp

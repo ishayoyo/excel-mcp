@@ -53,10 +53,10 @@ First, grab the code and install the necessary packages.
 
 ```bash
 # 1. Clone the repository to your local machine
-git clone <your-repo-url>
+git clone https://github.com/ishayoyo/excel-mcp.git
 
 # 2. Navigate into the project directory
-cd excel-csv-mcp
+cd excel-mcp
 
 # 3. Install all the dependencies
 npm install

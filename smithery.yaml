@@ -1,0 +1,37 @@
+# Smithery configuration file: https://smithery.ai/docs/build/project-config
+
+startCommand:
+  type: stdio
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => ({ command: 'node', args: ['dist/index.js'], env: { ...(config.anthropicApiKey ? { ANTHROPIC_API_KEY: config.anthropicApiKey } : {}), ...(config.openaiApiKey ? { OPENAI_API_KEY: config.openaiApiKey } : {}), ...(config.deepseekApiKey ? { DEEPSEEK_API_KEY: config.deepseekApiKey } : {}), ...(config.geminiApiKey ? { GEMINI_API_KEY: config.geminiApiKey } : {}), ...(config.anthropicModel ? { ANTHROPIC_MODEL: config.anthropicModel } : {}), ...(config.openaiModel ? { OPENAI_MODEL: config.openaiModel } : {}) } })
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    properties:
+      anthropicApiKey:
+        type: string
+        description: API key for Anthropic
+      openaiApiKey:
+        type: string
+        description: API key for OpenAI
+      deepseekApiKey:
+        type: string
+        description: API key for DeepSeek
+      geminiApiKey:
+        type: string
+        description: API key for Google Gemini
+      anthropicModel:
+        type: string
+        description: Anthropic model name (optional)
+      openaiModel:
+        type: string
+        description: OpenAI model name (optional)
+  exampleConfig:
+    anthropicApiKey: sk-ant-xxxxxxxxxxxxxxxxxxxxx
+    openaiApiKey: sk-openai-xxxxxxxxxxxxxxxxxxxxx
+    deepseekApiKey: sk-ds-xxxxxxxxxxxxxxxxxxxxx
+    geminiApiKey: sk-gemini-xxxxxxxxxxxxxxxxxxxxx
+    anthropicModel: claude-3-5-sonnet-20240620
+    openaiModel: gpt-4o

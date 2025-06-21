@@ -70,8 +70,22 @@ Add to your config file (`%APPDATA%\Claude\claude_desktop_config.json`):
 | `search` | Find values | Search "Electronics" |
 | `filter_rows` | Conditional filtering | Sales > $1000 |
 | `aggregate` | Math operations | SUM, AVG, COUNT |
+| `statistical_analysis` | Comprehensive stats | Mean, median, std dev, quartiles |
+| `correlation_analysis` | Correlation between columns | Pearson correlation coefficient |
+| `data_profile` | Full data profiling | Complete analysis of all columns |
+| `pivot_table` | Group and aggregate | Group by category, sum sales |
 
-## 🏗️ Development
+## 🔧 Alternative Setup (Using npx)
+
+Instead of editing config files, you can also use npx directly:
+
+```bash
+npx @modelcontextprotocol/inspector dist/index.js
+```
+
+This opens a test interface to try out the tools.
+
+## 🏗️ For Developers Only
 
 ```bash
 npm run dev    # Hot reload

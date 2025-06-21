@@ -43,5 +43,10 @@
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.13.0"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/sdk": "^0.32.0",
+    "openai": "^4.63.0",
+    "@google/generative-ai": "^0.21.0"
   }
 }

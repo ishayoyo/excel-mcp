@@ -12,6 +12,8 @@ A sleek MCP server that lets Claude read, analyze, and manipulate Excel & CSV fi
 🔧 **Advanced Filtering** - Query data with conditions  
 ⚡ **Lightning Fast** - Optimized for large datasets  
 📈 **Multi-format** - CSV, XLSX, XLS support  
+💾 **Write & Export** - Create new files and export analysis results  
+📊 **Statistical Analysis** - Comprehensive stats, correlations, profiling  
 
 ## 🚀 Quick Start
 
@@ -50,6 +52,7 @@ Add to your config file (`%APPDATA%\Claude\claude_desktop_config.json`):
 
 ## 💡 Usage Examples
 
+### Reading & Analysis
 ```
 🗣️ "Read my sales_data.csv file"
 🗣️ "What's the total revenue this quarter?"
@@ -57,6 +60,15 @@ Add to your config file (`%APPDATA%\Claude\claude_desktop_config.json`):
 🗣️ "Show me sales over $10,000"
 🗣️ "What's in cell B5?"
 🗣️ "Calculate average employee salary"
+🗣️ "Show me salary statistics by department"
+```
+
+### Writing & Exporting
+```
+🗣️ "Export the pivot table results to department_summary.xlsx"
+🗣️ "Save the statistical analysis to salary_stats.csv"
+🗣️ "Create a new Excel file with filtered results"
+🗣️ "Export correlation analysis between sales and costs"
 ```
 
 ## 🛠️ Available Tools
@@ -74,6 +86,8 @@ Add to your config file (`%APPDATA%\Claude\claude_desktop_config.json`):
 | `correlation_analysis` | Correlation between columns | Pearson correlation coefficient |
 | `data_profile` | Full data profiling | Complete analysis of all columns |
 | `pivot_table` | Group and aggregate | Group by category, sum sales |
+| `write_file` | Write new CSV/Excel file | Create files with data |
+| `export_analysis` | Export analysis results | Save pivot tables, stats to file |
 
 ## 🔧 Alternative Setup (Using npx)
 

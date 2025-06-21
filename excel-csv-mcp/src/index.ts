@@ -350,6 +350,66 @@ class ExcelCSVServer {
             required: ['filePath', 'groupBy', 'aggregateColumn', 'operation'],
           },
         },
+        // Write/Export Tools
+        {
+          name: 'write_file',
+          description: 'Write data to a new CSV or Excel file',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePath: {
+                type: 'string',
+                description: 'Path for the new file (must end with .csv, .xlsx, or .xls)',
+              },
+              data: {
+                type: 'array',
+                description: 'Array of arrays representing rows of data',
+                items: {
+                  type: 'array',
+                },
+              },
+              headers: {
+                type: 'array',
+                description: 'Optional headers for the first row',
+                items: {
+                  type: 'string',
+                },
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name for Excel files (optional, defaults to "Sheet1")',
+              },
+            },
+            required: ['filePath', 'data'],
+          },
+        },
+        {
+          name: 'export_analysis',
+          description: 'Export analysis results (pivot tables, statistics, etc.) to a new file',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              analysisType: {
+                type: 'string',
+                description: 'Type of analysis to export',
+                enum: ['pivot_table', 'statistical_analysis', 'correlation', 'data_profile'],
+              },
+              sourceFile: {
+                type: 'string',
+                description: 'Path to the source data file',
+              },
+              outputFile: {
+                type: 'string',
+                description: 'Path for the output file',
+              },
+              analysisParams: {
+                type: 'object',
+                description: 'Parameters for the analysis (depends on analysisType)',
+              },
+            },
+            required: ['analysisType', 'sourceFile', 'outputFile', 'analysisParams'],
+          },
+        },
       ],
     }));
 
@@ -380,6 +440,10 @@ class ExcelCSVServer {
             return await this.dataProfile(args);
           case 'pivot_table':
             return await this.pivotTable(args);
+          case 'write_file':
+            return await this.writeFile(args);
+          case 'export_analysis':
+            return await this.exportAnalysis(args);
           default:
             throw new McpError(
               ErrorCode.MethodNotFound,
@@ -950,6 +1014,168 @@ class ExcelCSVServer {
               totalGroups: results.length,
               results
             }
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  // Write/Export Tools Implementation
+  private async writeFile(args: any) {
+    const { filePath, data, headers, sheet = 'Sheet1' } = args;
+    const ext = path.extname(filePath).toLowerCase();
+    const absolutePath = path.resolve(filePath);
+    
+    // Prepare data with headers if provided
+    const fullData = headers ? [headers, ...data] : data;
+    
+    if (ext === '.csv') {
+      // Write CSV file
+      const csvContent = csvStringify.stringify(fullData);
+      await fs.writeFile(absolutePath, csvContent, 'utf-8');
+    } else if (ext === '.xlsx' || ext === '.xls') {
+      // Write Excel file
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.aoa_to_sheet(fullData);
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheet);
+      XLSX.writeFile(workbook, absolutePath);
+    } else {
+      throw new Error('Unsupported file format. Please use .csv, .xlsx, or .xls extension.');
+    }
+    
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            filePath: absolutePath,
+            rowsWritten: fullData.length,
+            columnsWritten: fullData[0]?.length || 0,
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async exportAnalysis(args: any) {
+    const { analysisType, sourceFile, outputFile, analysisParams } = args;
+    
+    let result: any;
+    let exportData: any[][] = [];
+    
+    switch (analysisType) {
+      case 'pivot_table': {
+        // Run pivot table analysis
+        const pivotResult = await this.pivotTable({
+          filePath: sourceFile,
+          ...analysisParams
+        });
+        const pivotData = JSON.parse(pivotResult.content[0].text);
+        
+        // Convert to tabular format
+        exportData = [
+          ['Group', 'Value', 'Count'],
+          ...pivotData.pivotTable.results.map((r: any) => [r.group, r.value, r.count])
+        ];
+        break;
+      }
+      
+      case 'statistical_analysis': {
+        // Run statistical analysis
+        const statsResult = await this.statisticalAnalysis({
+          filePath: sourceFile,
+          ...analysisParams
+        });
+        const statsData = JSON.parse(statsResult.content[0].text);
+        
+        // Convert to tabular format
+        exportData = [
+          ['Metric', 'Value'],
+          ['Column', statsData.column],
+          ['Count', statsData.statistics.count],
+          ['Sum', statsData.statistics.sum],
+          ['Mean', statsData.statistics.mean],
+          ['Median', statsData.statistics.median],
+          ['Min', statsData.statistics.min],
+          ['Max', statsData.statistics.max],
+          ['Range', statsData.statistics.range],
+          ['Std Dev', statsData.statistics.standardDeviation],
+          ['Variance', statsData.statistics.variance],
+          ['CV%', statsData.statistics.coefficientOfVariation],
+          ['Q1', statsData.statistics.quartiles.q1],
+          ['Q3', statsData.statistics.quartiles.q3],
+          ['IQR', statsData.statistics.quartiles.iqr],
+          ['Skewness', statsData.statistics.skewness]
+        ];
+        break;
+      }
+      
+      case 'correlation': {
+        // Run correlation analysis
+        const corrResult = await this.correlationAnalysis({
+          filePath: sourceFile,
+          ...analysisParams
+        });
+        const corrData = JSON.parse(corrResult.content[0].text);
+        
+        // Convert to tabular format
+        exportData = [
+          ['Metric', 'Value'],
+          ['Column 1', corrData.column1],
+          ['Column 2', corrData.column2],
+          ['Correlation', corrData.correlation],
+          ['R-squared', corrData.rSquared],
+          ['P-value', corrData.pValue || 'N/A'],
+          ['Interpretation', corrData.interpretation]
+        ];
+        break;
+      }
+      
+      case 'data_profile': {
+        // Run data profiling
+        const profileResult = await this.dataProfile({
+          filePath: sourceFile,
+          ...analysisParams
+        });
+        const profileData = JSON.parse(profileResult.content[0].text);
+        
+        // Convert to tabular format
+        const headers = ['Column', 'Type', 'Count', 'Unique', 'Missing', 'Missing%'];
+        const rows = profileData.columns.map((col: any) => [
+          col.name,
+          col.type,
+          col.count,
+          col.unique,
+          col.missing,
+          col.missingPercentage
+        ]);
+        
+        exportData = [headers, ...rows];
+        break;
+      }
+      
+      default:
+        throw new Error(`Unsupported analysis type: ${analysisType}`);
+    }
+    
+    // Write the analysis results to file
+    await this.writeFile({
+      filePath: outputFile,
+      data: exportData.slice(1), // Remove headers
+      headers: exportData[0] // Use first row as headers
+    });
+    
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            analysisType,
+            sourceFile,
+            outputFile,
+            rowsExported: exportData.length,
           }, null, 2),
         },
       ],

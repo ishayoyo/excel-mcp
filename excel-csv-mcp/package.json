@@ -1,0 +1,38 @@
+{
+  "name": "excel-csv-mcp-server",
+  "version": "1.0.0",
+  "description": "A powerful MCP server for reading, manipulating, and analyzing Excel and CSV files",
+  "main": "dist/index.js",
+  "bin": {
+    "excel-csv-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "lint": "tsc --noEmit",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "mcp",
+    "excel",
+    "csv",
+    "spreadsheet",
+    "data-analysis"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@types/node": "^24.0.3",
+    "@types/papaparse": "^5.3.16",
+    "csv-parse": "^5.6.0",
+    "csv-stringify": "^6.5.2",
+    "papaparse": "^5.5.3",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.13.0"
+  }
+}

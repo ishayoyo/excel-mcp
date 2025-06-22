@@ -15,6 +15,8 @@ export interface WorkbookContext {
   getCellValue(reference: string): any;
   getNamedRangeValue(name: string): any;
   getRangeValues(range: string): any[][];
+  getSheetCellValue(sheetName: string, reference: string): any;
+  getSheetRangeValues(sheetName: string, range: string): any[][];
 }
 
 export class FormulaEvaluator {
@@ -71,7 +73,19 @@ export class FormulaEvaluator {
   }
 
   private evaluateCellReference(reference: string, context: WorkbookContext): any {
-    const value = context.getCellValue(reference);
+    // Check if this is a cross-sheet reference (contains !)
+    const sheetSeparatorIndex = reference.indexOf('!');
+    let value;
+    
+    if (sheetSeparatorIndex > 0) {
+      // Cross-sheet reference: SheetName!CellRef
+      const sheetName = reference.substring(0, sheetSeparatorIndex);
+      const cellRef = reference.substring(sheetSeparatorIndex + 1);
+      value = context.getSheetCellValue(sheetName, cellRef);
+    } else {
+      // Same sheet reference
+      value = context.getCellValue(reference);
+    }
     
     // Handle empty cells
     if (value === null || value === undefined) {
@@ -87,11 +101,22 @@ export class FormulaEvaluator {
   }
 
   private evaluateRangeReference(range: string, context: WorkbookContext): any {
-    return context.getRangeValues(range);
+    // Check if this is a cross-sheet reference (contains !)
+    const sheetSeparatorIndex = range.indexOf('!');
+    
+    if (sheetSeparatorIndex > 0) {
+      // Cross-sheet reference: SheetName!RangeRef
+      const sheetName = range.substring(0, sheetSeparatorIndex);
+      const rangeRef = range.substring(sheetSeparatorIndex + 1);
+      return context.getSheetRangeValues(sheetName, rangeRef);
+    } else {
+      // Same sheet reference
+      return context.getRangeValues(range);
+    }
   }
 
   private evaluateFunction(node: ASTNode, context: WorkbookContext): any {
-    const funcName = node.value;
+    const funcName = node.value.toUpperCase(); // Excel functions are case-insensitive
     const args = node.children?.map(child => this.evaluateNode(child, context)) || [];
     
     // Check if function exists
@@ -100,8 +125,12 @@ export class FormulaEvaluator {
       throw new FormulaError('#NAME?');
     }
     
+    // Flatten arrays for functions that expect flattened arguments
+    const flattenedArgs = this.shouldFlattenArgs(funcName) ? 
+      args.map(arg => Array.isArray(arg) ? this.flattenArray(arg) : arg) : args;
+    
     // Call the function
-    return func.apply(this.functions, args);
+    return func.apply(this.functions, flattenedArgs);
   }
 
   private evaluateBinaryOperation(node: ASTNode, context: WorkbookContext): any {
@@ -227,6 +256,27 @@ export class FormulaEvaluator {
     if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
     if (value === null || value === undefined) return '';
     return value.toString();
+  }
+
+  private shouldFlattenArgs(funcName: string): boolean {
+    // Functions that should receive flattened arrays as individual arguments
+    const flattenFunctions = [
+      'SUM', 'AVERAGE', 'COUNT', 'COUNTA', 'MAX', 'MIN',
+      'SUMIF', 'COUNTIF', 'SUMIFS', 'COUNTIFS'
+    ];
+    return flattenFunctions.includes(funcName);
+  }
+
+  private flattenArray(arr: any[]): any[] {
+    const result: any[] = [];
+    for (const item of arr) {
+      if (Array.isArray(item)) {
+        result.push(...this.flattenArray(item));
+      } else {
+        result.push(item);
+      }
+    }
+    return result;
   }
 }
 

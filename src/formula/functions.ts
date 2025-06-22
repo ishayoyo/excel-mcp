@@ -231,6 +231,115 @@ export class ExcelFunctions {
     return value === '#N/A' ? valueIfNA : value;
   }
 
+  // Conditional Functions
+  SUMIF(range: any[], criteria: any, sumRange?: any[]): number {
+    if (!Array.isArray(range)) {
+      throw new Error('#VALUE!');
+    }
+    
+    const actualSumRange = sumRange || range;
+    let total = 0;
+    
+    for (let i = 0; i < range.length; i++) {
+      if (this.evaluateCriteria(range[i], criteria)) {
+        const value = actualSumRange[i];
+        if (typeof value === 'number') {
+          total += value;
+        }
+      }
+    }
+    
+    return total;
+  }
+
+  COUNTIF(range: any[], criteria: any): number {
+    if (!Array.isArray(range)) {
+      throw new Error('#VALUE!');
+    }
+    
+    let count = 0;
+    for (const value of range) {
+      if (this.evaluateCriteria(value, criteria)) {
+        count++;
+      }
+    }
+    
+    return count;
+  }
+
+  SUMIFS(sumRange: any[], ...criteriaArgs: any[]): number {
+    if (!Array.isArray(sumRange) || criteriaArgs.length % 2 !== 0) {
+      throw new Error('#VALUE!');
+    }
+    
+    let total = 0;
+    const criteriaCount = criteriaArgs.length / 2;
+    
+    for (let i = 0; i < sumRange.length; i++) {
+      let matches = true;
+      
+      for (let j = 0; j < criteriaCount; j++) {
+        const criteriaRange = criteriaArgs[j * 2];
+        const criteria = criteriaArgs[j * 2 + 1];
+        
+        if (!Array.isArray(criteriaRange) || i >= criteriaRange.length) {
+          matches = false;
+          break;
+        }
+        
+        if (!this.evaluateCriteria(criteriaRange[i], criteria)) {
+          matches = false;
+          break;
+        }
+      }
+      
+      if (matches && typeof sumRange[i] === 'number') {
+        total += sumRange[i];
+      }
+    }
+    
+    return total;
+  }
+
+  COUNTIFS(...criteriaArgs: any[]): number {
+    if (criteriaArgs.length % 2 !== 0) {
+      throw new Error('#VALUE!');
+    }
+    
+    const firstRange = criteriaArgs[0];
+    if (!Array.isArray(firstRange)) {
+      throw new Error('#VALUE!');
+    }
+    
+    let count = 0;
+    const criteriaCount = criteriaArgs.length / 2;
+    
+    for (let i = 0; i < firstRange.length; i++) {
+      let matches = true;
+      
+      for (let j = 0; j < criteriaCount; j++) {
+        const criteriaRange = criteriaArgs[j * 2];
+        const criteria = criteriaArgs[j * 2 + 1];
+        
+        if (!Array.isArray(criteriaRange) || i >= criteriaRange.length) {
+          matches = false;
+          break;
+        }
+        
+        if (!this.evaluateCriteria(criteriaRange[i], criteria)) {
+          matches = false;
+          break;
+        }
+      }
+      
+      if (matches) {
+        count++;
+      }
+    }
+    
+    return count;
+  }
+
   // Lookup Functions (basic implementations)
   VLOOKUP(lookupValue: any, tableArray: any[][], colIndexNum: number, rangeLookup: boolean = true): any {
     if (!Array.isArray(tableArray) || tableArray.length === 0) {
@@ -469,5 +578,55 @@ export class ExcelFunctions {
 
   private escapeRegex(str: string): string {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  private evaluateCriteria(value: any, criteria: any): boolean {
+    // Handle numeric criteria
+    if (typeof criteria === 'number') {
+      return this.toNumber(value) === criteria;
+    }
+    
+    // Handle string criteria
+    const criteriaStr = this.toString(criteria);
+    const valueStr = this.toString(value);
+    
+    // Handle comparison operators
+    if (criteriaStr.startsWith('>=')) {
+      const threshold = this.toNumber(criteriaStr.substring(2));
+      return this.toNumber(value) >= threshold;
+    }
+    if (criteriaStr.startsWith('<=')) {
+      const threshold = this.toNumber(criteriaStr.substring(2));
+      return this.toNumber(value) <= threshold;
+    }
+    if (criteriaStr.startsWith('<>')) {
+      const compareValue = criteriaStr.substring(2);
+      return !this.equals(value, compareValue);
+    }
+    if (criteriaStr.startsWith('>')) {
+      const threshold = this.toNumber(criteriaStr.substring(1));
+      return this.toNumber(value) > threshold;
+    }
+    if (criteriaStr.startsWith('<')) {
+      const threshold = this.toNumber(criteriaStr.substring(1));
+      return this.toNumber(value) < threshold;
+    }
+    if (criteriaStr.startsWith('=')) {
+      const compareValue = criteriaStr.substring(1);
+      return this.equals(value, compareValue);
+    }
+    
+    // Handle wildcards (* and ?)
+    if (criteriaStr.includes('*') || criteriaStr.includes('?')) {
+      const regexPattern = criteriaStr
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\\\*/g, '.*')
+        .replace(/\\\?/g, '.');
+      const regex = new RegExp(`^${regexPattern}$`, 'i');
+      return regex.test(valueStr);
+    }
+    
+    // Default: exact match (case-insensitive for strings)
+    return this.equals(value, criteria);
   }
 }

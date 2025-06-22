@@ -364,13 +364,79 @@ class ExcelCSVServer {
         // Write/Export Tools
         {
           name: 'write_file',
-          description: 'Write data to a new CSV or Excel file',
+          description: 'Write data to a new CSV or Excel file (supports multiple sheets for Excel)',
           inputSchema: {
             type: 'object',
             properties: {
               filePath: {
                 type: 'string',
                 description: 'Path for the new file (must end with .csv, .xlsx, or .xls)',
+              },
+              // Single sheet mode (backward compatible)
+              data: {
+                type: 'array',
+                description: 'Array of arrays representing rows of data (single sheet mode)',
+                items: {
+                  type: 'array',
+                },
+              },
+              headers: {
+                type: 'array',
+                description: 'Optional headers for the first row (single sheet mode)',
+                items: {
+                  type: 'string',
+                },
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name for Excel files (single sheet mode, defaults to "Sheet1")',
+              },
+              // Multi-sheet mode
+              sheets: {
+                type: 'array',
+                description: 'Array of sheet objects for multi-sheet Excel files',
+                items: {
+                  type: 'object',
+                  properties: {
+                    name: {
+                      type: 'string',
+                      description: 'Sheet name',
+                    },
+                    data: {
+                      type: 'array',
+                      description: 'Array of arrays representing rows of data',
+                      items: {
+                        type: 'array',
+                      },
+                    },
+                    headers: {
+                      type: 'array',
+                      description: 'Optional headers for the first row',
+                      items: {
+                        type: 'string',
+                      },
+                    },
+                  },
+                  required: ['name', 'data'],
+                },
+              },
+            },
+            required: ['filePath'],
+          },
+        },
+        {
+          name: 'add_sheet',
+          description: 'Add a new sheet to an existing Excel file',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePath: {
+                type: 'string',
+                description: 'Path to the existing Excel file (.xlsx or .xls)',
+              },
+              sheetName: {
+                type: 'string',
+                description: 'Name for the new sheet',
               },
               data: {
                 type: 'array',
@@ -386,12 +452,76 @@ class ExcelCSVServer {
                   type: 'string',
                 },
               },
-              sheet: {
-                type: 'string',
-                description: 'Sheet name for Excel files (optional, defaults to "Sheet1")',
+              position: {
+                type: 'number',
+                description: 'Position to insert the sheet (0-based index, optional)',
               },
             },
-            required: ['filePath', 'data'],
+            required: ['filePath', 'sheetName', 'data'],
+          },
+        },
+        {
+          name: 'write_multi_sheet',
+          description: 'Create a complex Excel file with multiple sheets, formulas, and inter-sheet references',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePath: {
+                type: 'string',
+                description: 'Path for the new Excel file (must end with .xlsx or .xls)',
+              },
+              sheets: {
+                type: 'array',
+                description: 'Array of sheet definitions',
+                items: {
+                  type: 'object',
+                  properties: {
+                    name: {
+                      type: 'string',
+                      description: 'Sheet name',
+                    },
+                    data: {
+                      type: 'array',
+                      description: 'Array of arrays representing rows of data',
+                      items: {
+                        type: 'array',
+                      },
+                    },
+                    headers: {
+                      type: 'array',
+                      description: 'Optional headers for the first row',
+                      items: {
+                        type: 'string',
+                      },
+                    },
+                    formulas: {
+                      type: 'array',
+                      description: 'Array of formula definitions',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          cell: {
+                            type: 'string',
+                            description: 'Cell address in A1 notation (e.g., "A1", "B5")',
+                          },
+                          formula: {
+                            type: 'string',
+                            description: 'Excel formula (e.g., "=SUM(A1:A10)", "=Sheet1!A1+Sheet2!B2")',
+                          },
+                        },
+                        required: ['cell', 'formula'],
+                      },
+                    },
+                  },
+                  required: ['name', 'data'],
+                },
+              },
+              sheetReferences: {
+                type: 'boolean',
+                description: 'Enable inter-sheet formula references (default: true)',
+              },
+            },
+            required: ['filePath', 'sheets'],
           },
         },
         {
@@ -547,6 +677,10 @@ class ExcelCSVServer {
             return await this.pivotTable(args);
           case 'write_file':
             return await this.writeFile(args);
+          case 'add_sheet':
+            return await this.addSheet(args);
+          case 'write_multi_sheet':
+            return await this.writeMultiSheet(args);
           case 'export_analysis':
             return await this.exportAnalysis(args);
 
@@ -1140,11 +1274,72 @@ class ExcelCSVServer {
 
   // Write/Export Tools Implementation
   private async writeFile(args: any) {
-    const { filePath, data, headers, sheet = 'Sheet1' } = args;
+    const { filePath, data, headers, sheet = 'Sheet1', sheets } = args;
     const ext = path.extname(filePath).toLowerCase();
     const absolutePath = path.resolve(filePath);
     
-    // Prepare data with headers if provided
+    // Multi-sheet mode for Excel files
+    if (sheets && Array.isArray(sheets)) {
+      if (ext === '.csv') {
+        throw new Error('CSV format does not support multiple sheets. Use .xlsx or .xls for multi-sheet files.');
+      }
+      
+      if (ext !== '.xlsx' && ext !== '.xls') {
+        throw new Error('Multi-sheet mode only works with Excel files (.xlsx or .xls)');
+      }
+      
+      const workbook = XLSX.utils.book_new();
+      let totalRows = 0;
+      let totalColumns = 0;
+      
+      for (const sheetData of sheets) {
+        if (!sheetData.data || !Array.isArray(sheetData.data)) {
+          throw new Error(`Sheet "${sheetData.name}" must have valid data array`);
+        }
+        
+        const fullData = sheetData.headers 
+          ? [sheetData.headers, ...sheetData.data] 
+          : sheetData.data;
+        
+        if (fullData.length === 0) {
+          // Add empty row if no data
+          fullData.push([]);
+        }
+        
+        const worksheet = XLSX.utils.aoa_to_sheet(fullData);
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheetData.name);
+        
+        totalRows += fullData.length;
+        if (fullData.length > 0 && Array.isArray(fullData[0])) {
+          totalColumns = Math.max(totalColumns, fullData[0].length || 0);
+        }
+      }
+      
+      XLSX.writeFile(workbook, absolutePath);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              filePath: absolutePath,
+              mode: 'multi-sheet',
+              sheetsWritten: sheets.length,
+              sheetNames: sheets.map(s => s.name),
+              totalRowsWritten: totalRows,
+              maxColumnsWritten: totalColumns,
+            }, null, 2),
+          },
+        ],
+      };
+    }
+    
+    // Single sheet mode (backward compatible)
+    if (!data || !Array.isArray(data)) {
+      throw new Error('Either "data" (for single sheet) or "sheets" (for multiple sheets) must be provided.');
+    }
+    
     const fullData = headers ? [headers, ...data] : data;
     
     if (ext === '.csv') {
@@ -1168,8 +1363,152 @@ class ExcelCSVServer {
           text: JSON.stringify({
             success: true,
             filePath: absolutePath,
+            mode: 'single-sheet',
+            sheetName: ext === '.csv' ? null : sheet,
             rowsWritten: fullData.length,
             columnsWritten: fullData[0]?.length || 0,
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async addSheet(args: any) {
+    const { filePath, sheetName, data, headers, position } = args;
+    const ext = path.extname(filePath).toLowerCase();
+    const absolutePath = path.resolve(filePath);
+    
+    if (ext !== '.xlsx' && ext !== '.xls') {
+      throw new Error('add_sheet only works with Excel files (.xlsx or .xls)');
+    }
+    
+    try {
+      await fs.access(absolutePath);
+    } catch {
+      throw new Error(`File not found: ${filePath}`);
+    }
+    
+    // Read existing workbook
+    const workbook = XLSX.readFile(absolutePath);
+    
+    // Check if sheet name already exists
+    if (workbook.SheetNames.includes(sheetName)) {
+      throw new Error(`Sheet "${sheetName}" already exists in the workbook`);
+    }
+    
+    // Prepare data with headers if provided
+    const fullData = headers ? [headers, ...data] : data;
+    
+    // Create new worksheet
+    const worksheet = XLSX.utils.aoa_to_sheet(fullData);
+    
+    // Add sheet at specified position or at the end
+    if (position !== undefined && position >= 0 && position <= workbook.SheetNames.length) {
+      // Insert at specific position
+      workbook.SheetNames.splice(position, 0, sheetName);
+      workbook.Sheets[sheetName] = worksheet;
+    } else {
+      // Append at the end
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    }
+    
+    // Write the updated workbook
+    XLSX.writeFile(workbook, absolutePath);
+    
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            filePath: absolutePath,
+            sheetName,
+            sheetCount: workbook.SheetNames.length,
+            sheetNames: workbook.SheetNames,
+            rowsAdded: fullData.length,
+            columnsAdded: fullData[0]?.length || 0,
+            position: position !== undefined ? position : workbook.SheetNames.length - 1,
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async writeMultiSheet(args: any) {
+    const { filePath, sheets, sheetReferences = true } = args;
+    const ext = path.extname(filePath).toLowerCase();
+    const absolutePath = path.resolve(filePath);
+    
+    if (ext !== '.xlsx' && ext !== '.xls') {
+      throw new Error('write_multi_sheet only works with Excel files (.xlsx or .xls)');
+    }
+    
+    const workbook = XLSX.utils.book_new();
+    const sheetInfo: any[] = [];
+    
+    // First pass: Create all sheets with data
+    for (const sheetDef of sheets) {
+      const { name, data, headers, formulas } = sheetDef;
+      
+      // Prepare data with headers if provided
+      const fullData = headers ? [headers, ...data] : data;
+      
+      // Create worksheet
+      const worksheet = XLSX.utils.aoa_to_sheet(fullData);
+      
+      // Apply formulas if provided
+      if (formulas && Array.isArray(formulas)) {
+        for (const formulaDef of formulas) {
+          const { cell, formula } = formulaDef;
+          const cellAddr = this.parseA1Notation(cell);
+          
+          // Set formula in worksheet
+          if (!worksheet[cell]) {
+            worksheet[cell] = {};
+          }
+          worksheet[cell].f = formula;
+          
+          // If the formula starts with =, remove it for the stored formula
+          const cleanFormula = formula.startsWith('=') ? formula.substring(1) : formula;
+          worksheet[cell].f = cleanFormula;
+        }
+      }
+      
+      // Add sheet to workbook
+      XLSX.utils.book_append_sheet(workbook, worksheet, name);
+      
+      sheetInfo.push({
+        name,
+        rowCount: fullData.length,
+        columnCount: (fullData.length > 0 && fullData[0]) ? fullData[0].length : 0,
+        formulaCount: formulas?.length || 0,
+      });
+    }
+    
+    // Update sheet ranges if needed
+    for (const sheetName of workbook.SheetNames) {
+      const worksheet = workbook.Sheets[sheetName];
+      if (!worksheet['!ref']) {
+        const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+        worksheet['!ref'] = XLSX.utils.encode_range(range);
+      }
+    }
+    
+    // Write the workbook
+    XLSX.writeFile(workbook, absolutePath);
+    
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            filePath: absolutePath,
+            mode: 'multi-sheet-advanced',
+            sheetsCreated: sheets.length,
+            sheetReferences: sheetReferences,
+            sheets: sheetInfo,
+            totalFormulas: sheetInfo.reduce((sum, sheet) => sum + sheet.formulaCount, 0),
           }, null, 2),
         },
       ],
@@ -1319,6 +1658,16 @@ class ExcelCSVServer {
         getRangeValues: (range: string) => {
           // Simple implementation - can be enhanced
           return context[range] || [];
+        },
+        getSheetCellValue: (sheetName: string, reference: string) => {
+          // For sheet references, try to get from context using proper Excel sheet!reference format
+          const key = `${sheetName}!${reference}`;
+          return context[key] || context[reference] || 0;
+        },
+        getSheetRangeValues: (sheetName: string, range: string) => {
+          // For sheet range references, try to get from context using proper Excel sheet!range format
+          const key = `${sheetName}!${range}`;
+          return context[key] || context[range] || [];
         }
       };
       

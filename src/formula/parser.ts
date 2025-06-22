@@ -40,6 +40,7 @@ export enum TokenType {
   FUNCTION = 'FUNCTION',
   
   // Special
+  EXCLAMATION = 'EXCLAMATION', // For sheet references
   EOF = 'EOF',
   ERROR = 'ERROR'
 }
@@ -157,14 +158,40 @@ export class FormulaTokenizer {
     const start = this.position;
     let value = '';
     
-    // Read letters and numbers
+    // Read letters and numbers (including spaces for sheet names)
     while (this.position < this.input.length && 
            (this.isLetter(this.input[this.position]) || 
             this.isDigit(this.input[this.position]) ||
             this.input[this.position] === '_' ||
-            this.input[this.position] === '$')) {
+            this.input[this.position] === '$' ||
+            this.input[this.position] === ' ' ||
+            this.input[this.position] === '\'')) { // Handle quoted sheet names
       value += this.input[this.position];
       this.position++;
+    }
+    
+    // Handle sheet references (SheetName!CellRef)
+    if (this.input[this.position] === '!') {
+      value += this.input[this.position]; // Add the !
+      this.position++;
+      
+      // Read the cell/range reference after !
+      while (this.position < this.input.length && 
+             (this.isLetter(this.input[this.position]) || 
+              this.isDigit(this.input[this.position]) ||
+              this.input[this.position] === '_' ||
+              this.input[this.position] === '$' ||
+              this.input[this.position] === ':')) {
+        value += this.input[this.position];
+        this.position++;
+      }
+      
+      // Determine if it's a range or cell reference
+      if (value.includes(':')) {
+        return { type: TokenType.RANGE_REFERENCE, value, position: start };
+      } else {
+        return { type: TokenType.CELL_REFERENCE, value, position: start };
+      }
     }
     
     // Check if it's a function (followed by parenthesis)
@@ -197,6 +224,16 @@ export class FormulaTokenizer {
   }
 
   private isCellReference(value: string): boolean {
+    // Handle sheet references (SheetName!CellRef)
+    if (value.includes('!')) {
+      const parts = value.split('!');
+      if (parts.length === 2) {
+        const cellPart = parts[1];
+        return /^[$]?[A-Z]+[$]?[0-9]+$/.test(cellPart.toUpperCase());
+      }
+      return false;
+    }
+    
     // Simple regex for cell references (handles A1, $A$1, etc.)
     return /^[$]?[A-Z]+[$]?[0-9]+$/.test(value.toUpperCase());
   }
@@ -217,6 +254,7 @@ export class FormulaTokenizer {
       case ')': return { type: TokenType.RIGHT_PAREN, value: char, position: start };
       case ',': return { type: TokenType.COMMA, value: char, position: start };
       case ':': return { type: TokenType.COLON, value: char, position: start };
+      case '!': return { type: TokenType.EXCLAMATION, value: char, position: start };
       case '=': 
         if (this.input[this.position] === '=') {
           this.position++;
@@ -500,4 +538,22 @@ export function getCellDependencies(formula: string): string[] {
   
   traverse(ast);
   return [...new Set(dependencies)]; // Remove duplicates
+}
+
+// Utility functions for sheet references
+export function parseSheetReference(reference: string): { sheetName?: string; cellRef: string } {
+  const exclamationIndex = reference.indexOf('!');
+  if (exclamationIndex > 0) {
+    return {
+      sheetName: reference.substring(0, exclamationIndex),
+      cellRef: reference.substring(exclamationIndex + 1)
+    };
+  }
+  return { cellRef: reference };
+}
+
+export function isValidSheetName(name: string): boolean {
+  // Excel sheet name rules: 1-31 characters, no \/:*?[]'
+  return name.length > 0 && name.length <= 31 && 
+         !/[\\\/:*?\[\]']/.test(name);
 }

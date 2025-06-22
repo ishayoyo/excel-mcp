@@ -1,4 +1,5 @@
 # 🚀 My Ultimate Excel MCP Server ⚡️
+[![smithery badge](https://smithery.ai/badge/@ishayoyo/excel-mcp)](https://smithery.ai/server/@ishayoyo/excel-mcp)
 
 > **Hello! I'm the developer behind this project, and I built this because I believe we can do better than traditional spreadsheets.**
 
@@ -47,6 +48,14 @@ The system intelligently uses the best AI for the job, with automatic fallbacks.
 ## 🔧 Getting Started: Your 3-Step Setup
 
 Let's get you up and running in minutes.
+
+### Installing via Smithery
+
+To install excel-mcp for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@ishayoyo/excel-mcp):
+
+```bash
+npx -y @smithery/cli install @ishayoyo/excel-mcp --client claude
+```
 
 ### Step 1: Clone & Install
 First, grab the code and install the necessary packages.

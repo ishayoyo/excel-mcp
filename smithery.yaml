@@ -1,0 +1,47 @@
+# Smithery configuration file: https://smithery.ai/docs/build/project-config
+
+startCommand:
+  type: stdio
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => ({ command: 'node', args: ['dist/index.js'], env: { ...config } })
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    required: []
+    properties:
+      ANTHROPIC_API_KEY:
+        type: string
+        description: Anthropic API key
+      OPENAI_API_KEY:
+        type: string
+        description: OpenAI API key
+      DEEPSEEK_API_KEY:
+        type: string
+        description: DeepSeek API key
+      GEMINI_API_KEY:
+        type: string
+        description: Gemini API key
+      ANTHROPIC_MODEL:
+        type: string
+        description: Anthropic model name
+      OPENAI_MODEL:
+        type: string
+        description: OpenAI model name
+      DEEPSEEK_MODEL:
+        type: string
+        description: DeepSeek model name
+      GEMINI_MODEL:
+        type: string
+        description: Gemini model name
+    description: Environment variables for AI providers (optional)
+  exampleConfig:
+    ANTHROPIC_API_KEY: sk-ant-xxxxxxxxxxxxxxxx
+    OPENAI_API_KEY: sk-openai-xxxxxxxxxxxxxx
+    DEEPSEEK_API_KEY: sk-deepseek-xxxxxxxxxxxxx
+    GEMINI_API_KEY: xxxxxxxxxxxxxxxxxxxx
+    ANTHROPIC_MODEL: claude-3-5-sonnet
+    OPENAI_MODEL: gpt-4o
+    DEEPSEEK_MODEL: default
+    GEMINI_MODEL: gemini-pro

@@ -13,7 +13,19 @@ const VALID_FUNCTIONS = new Set([
   'IF', 'AND', 'OR', 'NOT', 'XOR', 'IFERROR', 'IFNA',
   'SUMIF', 'COUNTIF', 'SUMIFS', 'COUNTIFS',
   'VLOOKUP', 'HLOOKUP', 'INDEX', 'MATCH',
-  'TODAY', 'NOW', 'YEAR', 'MONTH', 'DAY', 'HOUR', 'MINUTE', 'SECOND'
+  'TODAY', 'NOW', 'YEAR', 'MONTH', 'DAY', 'HOUR', 'MINUTE', 'SECOND',
+  // Phase 1: Critical Data Functions
+  'XLOOKUP', 'FILTER', 'SORT', 'UNIQUE', 'SEQUENCE',
+  // Phase 1: Statistical Functions
+  'PERCENTILE', 'QUARTILE', 'RANK', 'STDEV', 'STDEV.S', 'STDEV.P',
+  // Phase 2: Text Functions
+  'TEXTJOIN', 'TEXTSPLIT', 'REGEX',
+  // Phase 2: Financial Functions
+  'NPV', 'IRR', 'PMT', 'PV', 'FV',
+  // Phase 2: Date Functions
+  'WORKDAY', 'NETWORKDAYS', 'DATEDIF',
+  // Phase 3: Advanced Functions
+  'LET', 'LAMBDA', 'INDIRECT'
 ]);
 
 export enum TokenType {

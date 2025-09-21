@@ -438,6 +438,554 @@ export class ExcelFunctions {
     }
   }
 
+  // ============================================================================
+  // PHASE 1: CRITICAL DATA FUNCTIONS
+  // ============================================================================
+
+  /**
+   * XLOOKUP - Modern replacement for VLOOKUP with better functionality
+   * @param lookupValue Value to search for
+   * @param lookupArray Array to search in
+   * @param returnArray Array to return values from
+   * @param ifNotFound Optional value to return if not found
+   * @param matchMode Optional match mode (0=exact, -1=exact or next smallest, 1=exact or next largest)
+   * @param searchMode Optional search mode (1=first to last, -1=last to first)
+   */
+  XLOOKUP(lookupValue: any, lookupArray: any[], returnArray: any[], ifNotFound?: any, matchMode: number = 0, searchMode: number = 1): any {
+    if (!Array.isArray(lookupArray) || !Array.isArray(returnArray)) {
+      throw new Error('#VALUE!');
+    }
+
+    if (lookupArray.length !== returnArray.length) {
+      throw new Error('#VALUE!');
+    }
+
+    const searchIndices = searchMode === 1 ?
+      Array.from({length: lookupArray.length}, (_, i) => i) :
+      Array.from({length: lookupArray.length}, (_, i) => lookupArray.length - 1 - i);
+
+    for (const i of searchIndices) {
+      const currentValue = lookupArray[i];
+
+      if (matchMode === 0) {
+        // Exact match
+        if (this.equals(currentValue, lookupValue)) {
+          return returnArray[i];
+        }
+      } else if (matchMode === -1) {
+        // Exact match or next smallest
+        if (this.equals(currentValue, lookupValue)) {
+          return returnArray[i];
+        } else if (this.compare(currentValue, lookupValue) < 0) {
+          return returnArray[i];
+        }
+      } else if (matchMode === 1) {
+        // Exact match or next largest
+        if (this.equals(currentValue, lookupValue)) {
+          return returnArray[i];
+        } else if (this.compare(currentValue, lookupValue) > 0) {
+          return returnArray[i];
+        }
+      }
+    }
+
+    if (ifNotFound !== undefined) {
+      return ifNotFound;
+    }
+    throw new Error('#N/A');
+  }
+
+  /**
+   * FILTER - Filter an array based on criteria
+   * @param array Array to filter
+   * @param include Boolean array indicating which rows to include
+   * @param ifEmpty Optional value to return if no matches
+   */
+  FILTER(array: any[][], include: boolean[], ifEmpty?: any): any[][] {
+    if (!Array.isArray(array) || !Array.isArray(include)) {
+      throw new Error('#VALUE!');
+    }
+
+    if (array.length !== include.length) {
+      throw new Error('#VALUE!');
+    }
+
+    const filtered = array.filter((_, index) => include[index]);
+
+    if (filtered.length === 0) {
+      if (ifEmpty !== undefined) {
+        return [[ifEmpty]];
+      }
+      throw new Error('#CALC!');
+    }
+
+    return filtered;
+  }
+
+  /**
+   * SORT - Sort an array
+   * @param array Array to sort
+   * @param sortIndex Optional column index to sort by (1-based)
+   * @param sortOrder Optional sort order (1=ascending, -1=descending)
+   * @param byCol Optional sort by column instead of row
+   */
+  SORT(array: any[][], sortIndex: number = 1, sortOrder: number = 1, byCol: boolean = false): any[][] {
+    if (!Array.isArray(array) || array.length === 0) {
+      throw new Error('#VALUE!');
+    }
+
+    const sortedArray = [...array];
+    const colIndex = sortIndex - 1;
+
+    if (byCol) {
+      // Sort by column - transpose, sort, transpose back
+      throw new Error('#N/A'); // Not implemented for simplicity
+    } else {
+      // Sort by row
+      sortedArray.sort((a, b) => {
+        const aVal = Array.isArray(a) ? a[colIndex] : a;
+        const bVal = Array.isArray(b) ? b[colIndex] : b;
+        const comparison = this.compare(aVal, bVal);
+        return sortOrder === 1 ? comparison : -comparison;
+      });
+    }
+
+    return sortedArray;
+  }
+
+  /**
+   * UNIQUE - Return unique values from an array
+   * @param array Array to get unique values from
+   * @param byCol Optional return unique columns instead of rows
+   * @param exactlyOnce Optional return only values that occur exactly once
+   */
+  UNIQUE(array: any[][], byCol: boolean = false, exactlyOnce: boolean = false): any[][] {
+    if (!Array.isArray(array) || array.length === 0) {
+      throw new Error('#VALUE!');
+    }
+
+    if (byCol) {
+      throw new Error('#N/A'); // Not implemented for simplicity
+    }
+
+    const seen = new Map<string, number>();
+    const unique: any[][] = [];
+
+    for (const row of array) {
+      const key = JSON.stringify(row);
+      const count = seen.get(key) || 0;
+      seen.set(key, count + 1);
+
+      if (count === 0) {
+        unique.push(row);
+      }
+    }
+
+    if (exactlyOnce) {
+      return unique.filter(row => seen.get(JSON.stringify(row)) === 1);
+    }
+
+    return unique;
+  }
+
+  /**
+   * SEQUENCE - Generate a sequence of numbers
+   * @param rows Number of rows
+   * @param columns Number of columns (optional)
+   * @param start Starting number (optional)
+   * @param step Step between numbers (optional)
+   */
+  SEQUENCE(rows: number, columns: number = 1, start: number = 1, step: number = 1): any[][] {
+    if (rows <= 0 || columns <= 0) {
+      throw new Error('#VALUE!');
+    }
+
+    const result: any[][] = [];
+    let current = start;
+
+    for (let r = 0; r < rows; r++) {
+      const row: any[] = [];
+      for (let c = 0; c < columns; c++) {
+        row.push(current);
+        current += step;
+      }
+      result.push(row);
+    }
+
+    return result;
+  }
+
+  // ============================================================================
+  // PHASE 1: STATISTICAL FUNCTIONS
+  // ============================================================================
+
+  /**
+   * PERCENTILE - Return the k-th percentile of values
+   * @param array Array of values
+   * @param k Percentile value (0 to 1)
+   */
+  PERCENTILE(array: any[], k: number): number {
+    const numbers = this.flattenToNumbers([array]);
+    if (numbers.length === 0) throw new Error('#NUM!');
+    if (k < 0 || k > 1) throw new Error('#NUM!');
+
+    const sorted = numbers.sort((a, b) => a - b);
+    const index = (sorted.length - 1) * k;
+    const lower = Math.floor(index);
+    const upper = Math.ceil(index);
+
+    if (lower === upper) {
+      return sorted[lower];
+    }
+
+    const fraction = index - lower;
+    return sorted[lower] * (1 - fraction) + sorted[upper] * fraction;
+  }
+
+  /**
+   * QUARTILE - Return the quartile of a dataset
+   * @param array Array of values
+   * @param quart Quartile to return (0-4)
+   */
+  QUARTILE(array: any[], quart: number): number {
+    if (quart < 0 || quart > 4) throw new Error('#NUM!');
+
+    const percentiles = [0, 0.25, 0.5, 0.75, 1];
+    return this.PERCENTILE(array, percentiles[quart]);
+  }
+
+  /**
+   * RANK - Return the rank of a number in a list
+   * @param number Number to rank
+   * @param ref Array of numbers
+   * @param order Sort order (0=descending, 1=ascending)
+   */
+  RANK(number: number, ref: any[], order: number = 0): number {
+    const numbers = this.flattenToNumbers([ref]);
+    if (numbers.length === 0) throw new Error('#N/A');
+
+    const sorted = order === 0 ?
+      numbers.sort((a, b) => b - a) :
+      numbers.sort((a, b) => a - b);
+
+    const rank = sorted.indexOf(number);
+    if (rank === -1) throw new Error('#N/A');
+
+    return rank + 1;
+  }
+
+  /**
+   * STDEV.S - Calculate sample standard deviation
+   */
+  'STDEV.S'(...args: any[]): number {
+    return this.STDEV(...args);
+  }
+
+  /**
+   * STDEV.P - Calculate population standard deviation
+   */
+  'STDEV.P'(...args: any[]): number {
+    const numbers = this.flattenToNumbers(args);
+    if (numbers.length === 0) return 0;
+
+    const mean = numbers.reduce((sum, num) => sum + num, 0) / numbers.length;
+    const variance = numbers.reduce((sum, num) => sum + Math.pow(num - mean, 2), 0) / numbers.length;
+    return Math.sqrt(variance);
+  }
+
+  /**
+   * STDEV - Calculate sample standard deviation (legacy function)
+   */
+  STDEV(...args: any[]): number {
+    const numbers = this.flattenToNumbers(args);
+    if (numbers.length <= 1) return 0;
+
+    const mean = numbers.reduce((sum, num) => sum + num, 0) / numbers.length;
+    const variance = numbers.reduce((sum, num) => sum + Math.pow(num - mean, 2), 0) / (numbers.length - 1);
+    return Math.sqrt(variance);
+  }
+
+  // ============================================================================
+  // PHASE 2: TEXT FUNCTIONS
+  // ============================================================================
+
+  /**
+   * TEXTJOIN - Join text with a delimiter
+   * @param delimiter Delimiter to use
+   * @param ignoreEmpty Whether to ignore empty cells
+   * @param texts Text values to join
+   */
+  TEXTJOIN(delimiter: string, ignoreEmpty: boolean, ...texts: any[]): string {
+    const flatTexts = this.flatten(texts);
+    const filteredTexts = ignoreEmpty ?
+      flatTexts.filter(t => t !== null && t !== undefined && t !== '') :
+      flatTexts;
+
+    return filteredTexts.map(t => this.toString(t)).join(this.toString(delimiter));
+  }
+
+  /**
+   * TEXTSPLIT - Split text into an array
+   * @param text Text to split
+   * @param colDelimiter Column delimiter
+   * @param rowDelimiter Optional row delimiter
+   * @param ignoreEmpty Whether to ignore empty values
+   */
+  TEXTSPLIT(text: string, colDelimiter: string, rowDelimiter?: string, ignoreEmpty: boolean = false): any[][] {
+    const textStr = this.toString(text);
+    const colDel = this.toString(colDelimiter);
+
+    if (rowDelimiter) {
+      const rowDel = this.toString(rowDelimiter);
+      const rows = textStr.split(rowDel);
+      return rows.map(row => {
+        const cols = row.split(colDel);
+        return ignoreEmpty ? cols.filter(c => c !== '') : cols;
+      });
+    } else {
+      const cols = textStr.split(colDel);
+      const filtered = ignoreEmpty ? cols.filter(c => c !== '') : cols;
+      return [filtered];
+    }
+  }
+
+  /**
+   * REGEX - Extract text using regular expressions
+   * @param text Text to search
+   * @param pattern Regular expression pattern
+   * @param flags Optional regex flags
+   */
+  REGEX(text: string, pattern: string, flags: string = ''): string {
+    try {
+      const textStr = this.toString(text);
+      const regex = new RegExp(pattern, flags);
+      const match = textStr.match(regex);
+      return match ? match[0] : '';
+    } catch (error) {
+      throw new Error('#VALUE!');
+    }
+  }
+
+  // ============================================================================
+  // PHASE 2: FINANCIAL FUNCTIONS
+  // ============================================================================
+
+  /**
+   * NPV - Net Present Value
+   * @param rate Discount rate
+   * @param values Cash flow values
+   */
+  NPV(rate: number, ...values: any[]): number {
+    const cashFlows = this.flattenToNumbers(values);
+    let npv = 0;
+
+    for (let i = 0; i < cashFlows.length; i++) {
+      npv += cashFlows[i] / Math.pow(1 + rate, i + 1);
+    }
+
+    return npv;
+  }
+
+  /**
+   * IRR - Internal Rate of Return
+   * @param values Cash flow values
+   * @param guess Initial guess (optional)
+   */
+  IRR(values: any[], guess: number = 0.1): number {
+    const cashFlows = this.flattenToNumbers([values]);
+
+    // Newton-Raphson method
+    let rate = guess;
+    const maxIterations = 100;
+    const tolerance = 1e-6;
+
+    for (let i = 0; i < maxIterations; i++) {
+      let npv = 0;
+      let dnpv = 0;
+
+      for (let j = 0; j < cashFlows.length; j++) {
+        const power = j + 1;
+        const denominator = Math.pow(1 + rate, power);
+        npv += cashFlows[j] / denominator;
+        dnpv -= cashFlows[j] * power / (denominator * (1 + rate));
+      }
+
+      if (Math.abs(npv) < tolerance) {
+        return rate;
+      }
+
+      if (Math.abs(dnpv) < tolerance) {
+        throw new Error('#NUM!');
+      }
+
+      rate = rate - npv / dnpv;
+    }
+
+    throw new Error('#NUM!');
+  }
+
+  /**
+   * PMT - Payment calculation
+   * @param rate Interest rate per period
+   * @param nper Number of periods
+   * @param pv Present value
+   * @param fv Future value (optional)
+   * @param type Payment type (0=end, 1=beginning)
+   */
+  PMT(rate: number, nper: number, pv: number, fv: number = 0, type: number = 0): number {
+    if (rate === 0) {
+      return -(pv + fv) / nper;
+    }
+
+    const pvif = Math.pow(1 + rate, nper);
+    const pmt = -(pv * pvif + fv) / (((pvif - 1) / rate) * (1 + rate * type));
+
+    return pmt;
+  }
+
+  /**
+   * PV - Present Value
+   * @param rate Interest rate
+   * @param nper Number of periods
+   * @param pmt Payment per period
+   * @param fv Future value (optional)
+   * @param type Payment type (0=end, 1=beginning)
+   */
+  PV(rate: number, nper: number, pmt: number, fv: number = 0, type: number = 0): number {
+    if (rate === 0) {
+      return -pmt * nper - fv;
+    }
+
+    const pvif = Math.pow(1 + rate, nper);
+    const pv = -(pmt * (pvif - 1) / rate * (1 + rate * type) + fv) / pvif;
+
+    return pv;
+  }
+
+  /**
+   * FV - Future Value
+   * @param rate Interest rate
+   * @param nper Number of periods
+   * @param pmt Payment per period
+   * @param pv Present value (optional)
+   * @param type Payment type (0=end, 1=beginning)
+   */
+  FV(rate: number, nper: number, pmt: number, pv: number = 0, type: number = 0): number {
+    if (rate === 0) {
+      return -pv - pmt * nper;
+    }
+
+    const pvif = Math.pow(1 + rate, nper);
+    const fv = -(pv * pvif + pmt * (pvif - 1) / rate * (1 + rate * type));
+
+    return fv;
+  }
+
+  // ============================================================================
+  // PHASE 2: DATE FUNCTIONS
+  // ============================================================================
+
+  /**
+   * WORKDAY - Add business days to a date
+   * @param startDate Starting date
+   * @param days Number of workdays to add
+   * @param holidays Optional array of holiday dates
+   */
+  WORKDAY(startDate: Date | number, days: number, holidays?: any[]): Date {
+    const start = this.toDate(startDate);
+    const holidayDates = holidays ? holidays.map(h => this.toDate(h).getTime()) : [];
+
+    let current = new Date(start);
+    let remainingDays = Math.abs(days);
+    const direction = days >= 0 ? 1 : -1;
+
+    while (remainingDays > 0) {
+      current.setDate(current.getDate() + direction);
+
+      // Skip weekends (Saturday = 6, Sunday = 0)
+      const dayOfWeek = current.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        // Check if it's not a holiday
+        if (!holidayDates.includes(current.getTime())) {
+          remainingDays--;
+        }
+      }
+    }
+
+    return current;
+  }
+
+  /**
+   * NETWORKDAYS - Count business days between two dates
+   * @param startDate Start date
+   * @param endDate End date
+   * @param holidays Optional array of holiday dates
+   */
+  NETWORKDAYS(startDate: Date | number, endDate: Date | number, holidays?: any[]): number {
+    const start = this.toDate(startDate);
+    const end = this.toDate(endDate);
+    const holidayDates = holidays ? holidays.map(h => this.toDate(h).getTime()) : [];
+
+    let current = new Date(Math.min(start.getTime(), end.getTime()));
+    const last = new Date(Math.max(start.getTime(), end.getTime()));
+    let workdays = 0;
+
+    while (current <= last) {
+      const dayOfWeek = current.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        if (!holidayDates.includes(current.getTime())) {
+          workdays++;
+        }
+      }
+      current.setDate(current.getDate() + 1);
+    }
+
+    return workdays;
+  }
+
+  /**
+   * DATEDIF - Calculate difference between two dates
+   * @param startDate Start date
+   * @param endDate End date
+   * @param unit Unit of difference (Y, M, D, YM, YD, MD)
+   */
+  DATEDIF(startDate: Date | number, endDate: Date | number, unit: string): number {
+    const start = this.toDate(startDate);
+    const end = this.toDate(endDate);
+
+    if (start > end) {
+      throw new Error('#NUM!');
+    }
+
+    const unitUpper = unit.toUpperCase();
+
+    switch (unitUpper) {
+      case 'Y': // Years
+        return end.getFullYear() - start.getFullYear();
+
+      case 'M': // Months
+        return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+
+      case 'D': // Days
+        return Math.floor((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+
+      case 'YM': // Months ignoring years
+        return end.getMonth() - start.getMonth();
+
+      case 'YD': // Days ignoring years
+        const yearDiff = end.getFullYear() - start.getFullYear();
+        const adjustedEnd = new Date(end);
+        adjustedEnd.setFullYear(start.getFullYear());
+        return Math.floor((adjustedEnd.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+
+      case 'MD': // Days ignoring months and years
+        return end.getDate() - start.getDate();
+
+      default:
+        throw new Error('#VALUE!');
+    }
+  }
+
   // Date & Time Functions (basic)
   TODAY(): Date {
     const today = new Date();

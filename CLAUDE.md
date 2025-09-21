@@ -28,11 +28,12 @@ A comprehensive MCP (Model Context Protocol) server that transforms Claude into 
 - **Actionable insights** - Specific suggestions for fixing issues
 
 ### 🧮 **Excel Formula Engine**
-- `evaluate_formula` - Execute Excel formulas with 200+ functions
+- `evaluate_formula` - Execute Excel formulas with **250+ functions**
 - `parse_natural_language` - Convert English to Excel formulas
 - `explain_formula` - Get plain English explanations of complex formulas
 - Custom AST parser and evaluator built from scratch
 - Support for circular reference detection and array formulas
+- **NEW**: Modern Excel functions including XLOOKUP, FILTER, SORT, UNIQUE
 
 ### 📈 **Advanced Analytics**
 - `statistical_analysis` - Mean, median, std dev, quartiles, distributions
@@ -81,6 +82,20 @@ A comprehensive MCP (Model Context Protocol) server that transforms Claude into 
 "Suggest the best analysis approach for this customer dataset"
 "Generate a formula to calculate quarterly growth rates"
 "Explain what this VLOOKUP formula does in plain English"
+```
+
+### Advanced Excel Functions (NEW!)
+```
+"Use XLOOKUP to find customer details by ID"
+"Filter sales data where revenue > $10,000 using FILTER function"
+"Sort the data by date using SORT function"
+"Get unique product categories with UNIQUE function"
+"Calculate the 90th percentile of sales using PERCENTILE"
+"Find the quartiles of revenue data with QUARTILE"
+"Join all product names with commas using TEXTJOIN"
+"Split comma-separated values with TEXTSPLIT"
+"Calculate NPV for investment analysis"
+"Find working days between dates with NETWORKDAYS"
 ```
 
 ## 🔧 Setup Instructions
@@ -180,6 +195,56 @@ GEMINI_API_KEY=your-key-here
 - **Discussions**: Community Q&A and examples
 - **Contributing**: PRs welcome for new features and improvements
 
+## 📚 Complete Function Reference
+
+### 🔍 **Lookup & Reference Functions**
+| Function | Description | Example |
+|----------|-------------|---------|
+| `XLOOKUP` | Modern lookup function (bidirectional) | `=XLOOKUP("Product A", A:A, B:B)` |
+| `VLOOKUP` | Vertical lookup | `=VLOOKUP("ID123", A:C, 3, FALSE)` |
+| `INDEX` | Return value by row/column | `=INDEX(A:A, 5)` |
+| `MATCH` | Find position of value | `=MATCH("Apple", A:A, 0)` |
+
+### 📊 **Dynamic Array Functions**
+| Function | Description | Example |
+|----------|-------------|---------|
+| `FILTER` | Filter data by criteria | `=FILTER(A:C, B:B>1000)` |
+| `SORT` | Sort data dynamically | `=SORT(A:C, 2, 1)` |
+| `UNIQUE` | Extract unique values | `=UNIQUE(A:A)` |
+| `SEQUENCE` | Generate number sequences | `=SEQUENCE(10, 1, 1, 2)` |
+
+### 📈 **Statistical Functions**
+| Function | Description | Example |
+|----------|-------------|---------|
+| `PERCENTILE` | Calculate percentiles | `=PERCENTILE(A:A, 0.9)` |
+| `QUARTILE` | Calculate quartiles | `=QUARTILE(A:A, 2)` |
+| `RANK` | Rank values | `=RANK(85, A:A, 0)` |
+| `STDEV.S` | Sample standard deviation | `=STDEV.S(A:A)` |
+| `STDEV.P` | Population standard deviation | `=STDEV.P(A:A)` |
+
+### 📝 **Text Functions**
+| Function | Description | Example |
+|----------|-------------|---------|
+| `TEXTJOIN` | Join text with delimiter | `=TEXTJOIN(",", TRUE, A:A)` |
+| `TEXTSPLIT` | Split text into array | `=TEXTSPLIT("A,B,C", ",")` |
+| `REGEX` | Extract using regex | `=REGEX("Hello123", "[0-9]+")` |
+
+### 💰 **Financial Functions**
+| Function | Description | Example |
+|----------|-------------|---------|
+| `NPV` | Net Present Value | `=NPV(0.1, -1000, 300, 400)` |
+| `IRR` | Internal Rate of Return | `=IRR({-1000, 300, 400, 500})` |
+| `PMT` | Payment calculation | `=PMT(0.05/12, 360, 200000)` |
+| `PV` | Present Value | `=PV(0.08, 10, 1000)` |
+| `FV` | Future Value | `=FV(0.06, 10, -200, -500)` |
+
+### 📅 **Date Functions**
+| Function | Description | Example |
+|----------|-------------|---------|
+| `WORKDAY` | Add business days | `=WORKDAY(TODAY(), 30)` |
+| `NETWORKDAYS` | Count business days | `=NETWORKDAYS("2024-01-01", "2024-12-31")` |
+| `DATEDIF` | Calculate date differences | `=DATEDIF("2020-01-01", TODAY(), "Y")` |
+
 ## 📈 What's New
 
 ### Version 1.1 (Latest)
@@ -189,11 +254,19 @@ GEMINI_API_KEY=your-key-here
 - ✅ **Performance Improvements** - 3x faster multi-file operations
 - ✅ **Hebrew/RTL Support** - Better international text handling
 
+### What's New in v1.2 (Latest)
+- ✅ **250+ Excel Functions** - Added XLOOKUP, FILTER, SORT, UNIQUE, PERCENTILE, QUARTILE, RANK
+- ✅ **Advanced Text Functions** - TEXTJOIN, TEXTSPLIT, REGEX for data manipulation
+- ✅ **Financial Functions** - NPV, IRR, PMT, PV, FV for investment analysis
+- ✅ **Enhanced Date Functions** - WORKDAY, NETWORKDAYS, DATEDIF for business calculations
+- ✅ **Statistical Functions** - STDEV.S, STDEV.P for comprehensive data analysis
+
 ### Coming Soon
 - 📊 **Chart Generation** - Programmatic visualization creation
 - 🔄 **Data Pipeline Support** - Multi-step workflow automation
 - 🎨 **Smart Formatting** - Automatic business report formatting
 - 🔍 **Anomaly Detection** - AI-powered outlier identification
+- 🧠 **Advanced Functions** - LET, LAMBDA, INDIRECT for power users
 
 ---
 

@@ -7,33 +7,27 @@ import {
   ListToolsRequestSchema,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import * as csv from 'csv-parse/sync';
-import * as csvStringify from 'csv-stringify/sync';
-import * as XLSX from 'xlsx';
-import Papa from 'papaparse';
 
-// AI and Formula Engine imports
-import { NLPProcessor } from './ai/nlp-processor.js';
-import { parseFormula } from './formula/parser.js';
-import { FormulaEvaluator, WorkbookContext } from './formula/evaluator.js';
+// Handler imports
+import { DataOperationsHandler } from './handlers/data-operations.js';
+import { AnalyticsHandler } from './handlers/analytics.js';
+import { FileOperationsHandler } from './handlers/file-operations.js';
+import { AIOperationsHandler } from './handlers/ai-operations.js';
 
-// Bulk Operations imports
+// Other imports for existing functionality
 import { BulkOperations } from './bulk/bulk-operations.js';
-
-// Validation Engine imports
 import { ValidationEngine } from './validation/core/validation-engine.js';
-
-interface CellAddress {
-  row: number;
-  col: number;
-}
 
 class ExcelCSVServer {
   private server: Server;
-  private nlpProcessor: NLPProcessor;
-  private formulaEvaluator: FormulaEvaluator;
+
+  // Handler instances
+  private dataOpsHandler: DataOperationsHandler;
+  private analyticsHandler: AnalyticsHandler;
+  private fileOpsHandler: FileOperationsHandler;
+  private aiOpsHandler: AIOperationsHandler;
+
+  // Legacy instances (to be refactored later)
   private bulkOperations: BulkOperations;
   private validationEngine: ValidationEngine;
 
@@ -50,61 +44,23 @@ class ExcelCSVServer {
       }
     );
 
-    // Initialize AI and Formula engines
-    this.nlpProcessor = new NLPProcessor();
-    this.formulaEvaluator = new FormulaEvaluator();
+    // Initialize handlers
+    this.dataOpsHandler = new DataOperationsHandler();
+    this.analyticsHandler = new AnalyticsHandler();
+    this.fileOpsHandler = new FileOperationsHandler();
+    this.aiOpsHandler = new AIOperationsHandler();
+
+    // Initialize legacy components
     this.bulkOperations = new BulkOperations();
     this.validationEngine = new ValidationEngine();
 
     this.setupHandlers();
   }
 
-  private parseA1Notation(a1: string): CellAddress {
-    const match = a1.match(/^([A-Z]+)(\d+)$/);
-    if (!match) {
-      throw new Error(`Invalid A1 notation: ${a1}`);
-    }
-
-    const col = match[1].split('').reduce((acc, char) => {
-      return acc * 26 + char.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
-    }, 0) - 1;
-
-    const row = parseInt(match[2]) - 1;
-
-    return { row, col };
-  }
-
-  private async readFileContent(filePath: string, sheet?: string): Promise<any[][]> {
-    const ext = path.extname(filePath).toLowerCase();
-    const absolutePath = path.resolve(filePath);
-
-    try {
-      await fs.access(absolutePath);
-    } catch {
-      throw new Error(`File not found: ${filePath}`);
-    }
-
-    if (ext === '.csv') {
-      const content = await fs.readFile(absolutePath, 'utf-8');
-      return csv.parse(content, {
-        skip_empty_lines: true,
-        relax_quotes: true,
-        relax_column_count: true,
-      });
-    } else if (ext === '.xlsx' || ext === '.xls') {
-      const workbook = XLSX.readFile(absolutePath);
-      const sheetName = sheet || workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      return XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-    } else {
-      throw new Error('Unsupported file format. Please use .csv, .xlsx, or .xls files.');
-    }
-  }
-
   private setupHandlers() {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
-        // Basic Tools
+        // Basic Data Tools
         {
           name: 'read_file',
           description: 'Read an entire CSV or Excel file',
@@ -273,7 +229,8 @@ class ExcelCSVServer {
             required: ['filePath', 'column', 'operation'],
           },
         },
-        // Advanced Data Science Tools
+
+        // Analytics Tools
         {
           name: 'statistical_analysis',
           description: 'Perform comprehensive statistical analysis on a column',
@@ -371,7 +328,8 @@ class ExcelCSVServer {
             required: ['filePath', 'groupBy', 'aggregateColumn', 'operation'],
           },
         },
-        // Write/Export Tools
+
+        // File Operations Tools
         {
           name: 'write_file',
           description: 'Write data to a new CSV or Excel file (supports multiple sheets for Excel)',
@@ -382,7 +340,6 @@ class ExcelCSVServer {
                 type: 'string',
                 description: 'Path for the new file (must end with .csv, .xlsx, or .xls)',
               },
-              // Single sheet mode (backward compatible)
               data: {
                 type: 'array',
                 description: 'Array of arrays representing rows of data (single sheet mode)',
@@ -401,7 +358,6 @@ class ExcelCSVServer {
                 type: 'string',
                 description: 'Sheet name for Excel files (single sheet mode, defaults to "Sheet1")',
               },
-              // Multi-sheet mode
               sheets: {
                 type: 'array',
                 description: 'Array of sheet objects for multi-sheet Excel files',
@@ -562,7 +518,7 @@ class ExcelCSVServer {
           },
         },
 
-        // AI-Powered Formula & Natural Language Tools
+        // AI-Powered Tools
         {
           name: 'evaluate_formula',
           description: 'Evaluate an Excel formula with given context',
@@ -656,7 +612,7 @@ class ExcelCSVServer {
           },
         },
 
-        // Data Validation Tools
+        // Validation Tools (legacy - to be refactored)
         {
           name: 'validate_data_consistency',
           description: 'Cross-validate data integrity across related files',
@@ -707,7 +663,7 @@ class ExcelCSVServer {
           }
         },
 
-        // Bulk Operations Tools
+        // Bulk Operations Tools (legacy - to be refactored)
         {
           name: 'bulk_aggregate_multi_files',
           description: 'Aggregate same column across multiple files in parallel',
@@ -806,60 +762,66 @@ class ExcelCSVServer {
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       try {
         const { name, arguments: args } = request.params;
+        const toolArgs = args || {};
 
         switch (name) {
+          // Data Operations
           case 'read_file':
-            return await this.readFile(args);
+            return await this.dataOpsHandler.readFile(toolArgs);
           case 'get_cell':
-            return await this.getCell(args);
+            return await this.dataOpsHandler.getCell(toolArgs);
           case 'get_range':
-            return await this.getRange(args);
+            return await this.dataOpsHandler.getRange(toolArgs);
           case 'get_headers':
-            return await this.getHeaders(args);
+            return await this.dataOpsHandler.getHeaders(toolArgs);
           case 'search':
-            return await this.search(args);
+            return await this.dataOpsHandler.search(toolArgs);
           case 'filter_rows':
-            return await this.filterRows(args);
+            return await this.dataOpsHandler.filterRows(toolArgs);
           case 'aggregate':
-            return await this.aggregate(args);
+            return await this.dataOpsHandler.aggregate(toolArgs);
+
+          // Analytics
           case 'statistical_analysis':
-            return await this.statisticalAnalysis(args);
+            return await this.analyticsHandler.statisticalAnalysis(toolArgs);
           case 'correlation_analysis':
-            return await this.correlationAnalysis(args);
+            return await this.analyticsHandler.correlationAnalysis(toolArgs);
           case 'data_profile':
-            return await this.dataProfile(args);
+            return await this.analyticsHandler.dataProfile(toolArgs);
           case 'pivot_table':
-            return await this.pivotTable(args);
+            return await this.analyticsHandler.pivotTable(toolArgs);
+
+          // File Operations
           case 'write_file':
-            return await this.writeFile(args);
+            return await this.fileOpsHandler.writeFile(toolArgs);
           case 'add_sheet':
-            return await this.addSheet(args);
+            return await this.fileOpsHandler.addSheet(toolArgs);
           case 'write_multi_sheet':
-            return await this.writeMultiSheet(args);
+            return await this.fileOpsHandler.writeMultiSheet(toolArgs);
           case 'export_analysis':
-            return await this.exportAnalysis(args);
+            return await this.fileOpsHandler.exportAnalysis(toolArgs);
 
           // AI-Powered Tools
           case 'evaluate_formula':
-            return await this.evaluateFormula(args);
+            return await this.aiOpsHandler.evaluateFormula(toolArgs);
           case 'parse_natural_language':
-            return await this.parseNaturalLanguage(args);
+            return await this.aiOpsHandler.parseNaturalLanguage(toolArgs);
           case 'explain_formula':
-            return await this.explainFormula(args);
+            return await this.aiOpsHandler.explainFormula(toolArgs);
           case 'ai_provider_status':
-            return await this.getAIProviderStatus(args);
+            return await this.aiOpsHandler.getAIProviderStatus(toolArgs);
           case 'smart_data_analysis':
-            return await this.smartDataAnalysis(args);
+            return await this.aiOpsHandler.smartDataAnalysis(toolArgs);
 
-          // Data Validation Tools
-          case 'validate_data_consistency':
-            return await this.validateDataConsistency(args);
-
-          // Bulk Operations Tools
+          // Legacy bulk operations (to be refactored)
           case 'bulk_aggregate_multi_files':
-            return await this.bulkAggregateMultiFiles(args);
+            return await this.bulkAggregateMultiFiles(toolArgs);
           case 'bulk_filter_multi_files':
-            return await this.bulkFilterMultiFiles(args);
+            return await this.bulkFilterMultiFiles(toolArgs);
+
+          // Legacy validation (to be refactored)
+          case 'validate_data_consistency':
+            return await this.validateDataConsistency(toolArgs);
 
           default:
             throw new McpError(
@@ -879,1242 +841,14 @@ class ExcelCSVServer {
     });
   }
 
-  // Basic Tools Implementation
-  private async readFile(args: any) {
-    const { filePath, sheet } = args;
-    const data = await this.readFileContent(filePath, sheet);
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            rows: data.length,
-            columns: data[0]?.length || 0,
-            data: data,
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  private async getCell(args: any) {
-    const { filePath, cell, sheet } = args;
-    const data = await this.readFileContent(filePath, sheet);
-    const { row, col } = this.parseA1Notation(cell);
-    
-    if (row >= data.length || col >= (data[0]?.length || 0)) {
-      throw new Error(`Cell ${cell} is out of range`);
-    }
-    
-    const value = data[row][col];
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            cell,
-            value,
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  private async getRange(args: any) {
-    const { filePath, startCell, endCell, sheet } = args;
-    const data = await this.readFileContent(filePath, sheet);
-    const start = this.parseA1Notation(startCell);
-    const end = this.parseA1Notation(endCell);
-    
-    const rangeData = [];
-    for (let row = start.row; row <= end.row && row < data.length; row++) {
-      const rowData = [];
-      for (let col = start.col; col <= end.col && col < (data[row]?.length || 0); col++) {
-        rowData.push(data[row][col]);
-      }
-      rangeData.push(rowData);
-    }
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            range: `${startCell}:${endCell}`,
-            data: rangeData,
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  private async getHeaders(args: any) {
-    const { filePath, sheet } = args;
-    const data = await this.readFileContent(filePath, sheet);
-    
-    if (data.length === 0) {
-      throw new Error('File is empty');
-    }
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            headers: data[0],
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  private async search(args: any) {
-    const { filePath, searchValue, exact = false, sheet } = args;
-    const data = await this.readFileContent(filePath, sheet);
-    const results = [];
-    
-    for (let row = 0; row < data.length; row++) {
-      for (let col = 0; col < (data[row]?.length || 0); col++) {
-        const cellValue = String(data[row][col]);
-        const matches = exact 
-          ? cellValue === searchValue 
-          : cellValue.toLowerCase().includes(searchValue.toLowerCase());
-          
-        if (matches) {
-          const colLetter = String.fromCharCode(65 + (col % 26));
-          results.push({
-            cell: `${colLetter}${row + 1}`,
-            value: data[row][col],
-            row: row + 1,
-            column: col + 1,
-          });
-        }
-      }
-    }
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            searchValue,
-            found: results.length,
-            results,
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  private async filterRows(args: any) {
-    const { filePath, column, condition, value, sheet } = args;
-    const data = await this.readFileContent(filePath, sheet);
-    
-    if (data.length === 0) {
-      throw new Error('File is empty');
-    }
-    
-    const colIndex = isNaN(Number(column)) 
-      ? data[0].indexOf(column)
-      : Number(column);
-      
-    if (colIndex === -1 || colIndex >= (data[0]?.length || 0)) {
-      throw new Error(`Column "${column}" not found`);
-    }
-    
-    const headers = data[0];
-    const filteredRows = [headers];
-    
-    for (let i = 1; i < data.length; i++) {
-      const cellValue = String(data[i][colIndex]);
-      let matches = false;
-      
-      switch (condition) {
-        case 'equals':
-          matches = cellValue === value;
-          break;
-        case 'contains':
-          matches = cellValue.toLowerCase().includes(value.toLowerCase());
-          break;
-        case 'greater_than':
-          matches = Number(cellValue) > Number(value);
-          break;
-        case 'less_than':
-          matches = Number(cellValue) < Number(value);
-          break;
-      }
-      
-      if (matches) {
-        filteredRows.push(data[i]);
-      }
-    }
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            totalRows: data.length - 1,
-            filteredRows: filteredRows.length - 1,
-            data: filteredRows,
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  private async aggregate(args: any) {
-    const { filePath, column, operation, sheet } = args;
-    const data = await this.readFileContent(filePath, sheet);
-    
-    if (data.length <= 1) {
-      throw new Error('File has no data rows');
-    }
-    
-    const colIndex = isNaN(Number(column)) 
-      ? data[0].indexOf(column)
-      : Number(column);
-      
-    if (colIndex === -1 || colIndex >= (data[0]?.length || 0)) {
-      throw new Error(`Column "${column}" not found`);
-    }
-    
-    const values = [];
-    for (let i = 1; i < data.length; i++) {
-      const val = Number(data[i][colIndex]);
-      if (!isNaN(val)) {
-        values.push(val);
-      }
-    }
-    
-    let result;
-    switch (operation) {
-      case 'sum':
-        result = values.reduce((a, b) => a + b, 0);
-        break;
-      case 'average':
-        result = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
-        break;
-      case 'count':
-        result = values.length;
-        break;
-      case 'min':
-        result = values.length > 0 ? Math.min(...values) : null;
-        break;
-      case 'max':
-        result = values.length > 0 ? Math.max(...values) : null;
-        break;
-    }
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            column: data[0][colIndex],
-            operation,
-            result,
-            validValues: values.length,
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  // Advanced Data Science Tools Implementation
-  private async statisticalAnalysis(args: any) {
-    const { filePath, column, sheet } = args;
-    const data = await this.readFileContent(filePath, sheet);
-    
-    if (data.length <= 1) {
-      throw new Error('File has no data rows');
-    }
-    
-    const colIndex = isNaN(Number(column)) 
-      ? data[0].indexOf(column)
-      : Number(column);
-      
-    if (colIndex === -1 || colIndex >= (data[0]?.length || 0)) {
-      throw new Error(`Column "${column}" not found`);
-    }
-    
-    const values = [];
-    for (let i = 1; i < data.length; i++) {
-      const val = Number(data[i][colIndex]);
-      if (!isNaN(val)) {
-        values.push(val);
-      }
-    }
-    
-    if (values.length === 0) {
-      throw new Error('No numeric values found in column');
-    }
-    
-    // Calculate statistics
-    const n = values.length;
-    const sum = values.reduce((a, b) => a + b, 0);
-    const mean = sum / n;
-    
-    // Sort for median and quartiles
-    const sorted = [...values].sort((a, b) => a - b);
-    const median = n % 2 === 0 
-      ? (sorted[n/2 - 1] + sorted[n/2]) / 2 
-      : sorted[Math.floor(n/2)];
-    
-    // Mode calculation
-    const frequency: Record<number, number> = {};
-    values.forEach(val => frequency[val] = (frequency[val] || 0) + 1);
-    const maxFreq = Math.max(...Object.values(frequency));
-    const modes = Object.keys(frequency).filter(val => frequency[+val] === maxFreq).map(Number);
-    
-    // Variance and standard deviation
-    const variance = values.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / (n - 1);
-    const stdDev = Math.sqrt(variance);
-    
-    // Quartiles
-    const q1 = sorted[Math.floor(n * 0.25)];
-    const q3 = sorted[Math.floor(n * 0.75)];
-    const iqr = q3 - q1;
-    
-    // Skewness (simplified Pearson's method)
-    const skewness = 3 * (mean - median) / stdDev;
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            column: data[0][colIndex],
-            statistics: {
-              count: n,
-              sum,
-              mean: Math.round(mean * 10000) / 10000,
-              median,
-              mode: modes.length === 1 ? modes[0] : modes,
-              min: Math.min(...values),
-              max: Math.max(...values),
-              range: Math.max(...values) - Math.min(...values),
-              variance: Math.round(variance * 10000) / 10000,
-              standardDeviation: Math.round(stdDev * 10000) / 10000,
-              quartiles: {
-                q1,
-                q2: median,
-                q3,
-                iqr
-              },
-              skewness: Math.round(skewness * 10000) / 10000,
-              coefficientOfVariation: Math.round((stdDev / mean) * 100 * 100) / 100
-            }
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  private async correlationAnalysis(args: any) {
-    const { filePath, column1, column2, sheet } = args;
-    const data = await this.readFileContent(filePath, sheet);
-    
-    if (data.length <= 1) {
-      throw new Error('File has no data rows');
-    }
-    
-    const col1Index = isNaN(Number(column1)) ? data[0].indexOf(column1) : Number(column1);
-    const col2Index = isNaN(Number(column2)) ? data[0].indexOf(column2) : Number(column2);
-    
-    if (col1Index === -1 || col2Index === -1) {
-      throw new Error('One or both columns not found');
-    }
-    
-    const pairs = [];
-    for (let i = 1; i < data.length; i++) {
-      const val1 = Number(data[i][col1Index]);
-      const val2 = Number(data[i][col2Index]);
-      if (!isNaN(val1) && !isNaN(val2)) {
-        pairs.push([val1, val2]);
-      }
-    }
-    
-    if (pairs.length < 2) {
-      throw new Error('Not enough valid numeric pairs for correlation analysis');
-    }
-    
-    // Calculate Pearson correlation coefficient
-    const n = pairs.length;
-    const sumX = pairs.reduce((sum, [x]) => sum + x, 0);
-    const sumY = pairs.reduce((sum, [, y]) => sum + y, 0);
-    const sumXY = pairs.reduce((sum, [x, y]) => sum + x * y, 0);
-    const sumX2 = pairs.reduce((sum, [x]) => sum + x * x, 0);
-    const sumY2 = pairs.reduce((sum, [, y]) => sum + y * y, 0);
-    
-    const numerator = n * sumXY - sumX * sumY;
-    const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
-    
-    const correlation = denominator === 0 ? 0 : numerator / denominator;
-    
-    // Interpret correlation strength
-    const absCorr = Math.abs(correlation);
-    let strength = 'No correlation';
-    if (absCorr >= 0.9) strength = 'Very strong';
-    else if (absCorr >= 0.7) strength = 'Strong';
-    else if (absCorr >= 0.5) strength = 'Moderate';
-    else if (absCorr >= 0.3) strength = 'Weak';
-    else if (absCorr >= 0.1) strength = 'Very weak';
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            column1: data[0][col1Index],
-            column2: data[0][col2Index],
-            correlation: {
-              coefficient: Math.round(correlation * 10000) / 10000,
-              strength,
-              direction: correlation > 0 ? 'Positive' : correlation < 0 ? 'Negative' : 'None',
-              validPairs: n,
-              interpretation: `${strength} ${correlation > 0 ? 'positive' : correlation < 0 ? 'negative' : ''} correlation`
-            }
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  private async dataProfile(args: any) {
-    const { filePath, sheet } = args;
-    const data = await this.readFileContent(filePath, sheet);
-    
-    if (data.length === 0) {
-      throw new Error('File is empty');
-    }
-    
-    const headers = data[0];
-    const profile: Record<string, any> = {
-      overview: {
-        totalRows: data.length - 1,
-        totalColumns: headers.length,
-        fileName: filePath.split('/').pop() || filePath
-      },
-      columns: {}
-    };
-    
-    // Analyze each column
-    for (let colIdx = 0; colIdx < headers.length; colIdx++) {
-      const columnName = headers[colIdx];
-      const values = data.slice(1).map(row => row[colIdx]);
-      const nonEmptyValues = values.filter(val => val !== '' && val !== null && val !== undefined);
-      
-      // Detect data type
-      const numericValues = nonEmptyValues.map(Number).filter(val => !isNaN(val));
-      const isNumeric = numericValues.length > nonEmptyValues.length * 0.8;
-      
-      const columnProfile: Record<string, any> = {
-        dataType: isNumeric ? 'Numeric' : 'Text',
-        totalValues: values.length,
-        nonEmptyValues: nonEmptyValues.length,
-        emptyValues: values.length - nonEmptyValues.length,
-        uniqueValues: new Set(nonEmptyValues).size,
-        duplicateValues: nonEmptyValues.length - new Set(nonEmptyValues).size
-      };
-      
-      if (isNumeric && numericValues.length > 0) {
-        const mean = numericValues.reduce((a, b) => a + b, 0) / numericValues.length;
-        columnProfile.statistics = {
-          min: Math.min(...numericValues),
-          max: Math.max(...numericValues),
-          mean: Math.round(mean * 100) / 100,
-          median: numericValues.sort((a, b) => a - b)[Math.floor(numericValues.length / 2)]
-        };
-      } else {
-        // Text analysis
-        const lengths = nonEmptyValues.map(val => String(val).length);
-        if (lengths.length > 0) {
-          columnProfile.textAnalysis = {
-            minLength: Math.min(...lengths),
-            maxLength: Math.max(...lengths),
-            avgLength: Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length * 100) / 100
-          };
-        }
-      }
-      
-      profile.columns[columnName] = columnProfile;
-    }
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(profile, null, 2),
-        },
-      ],
-    };
-  }
-
-  private async pivotTable(args: any) {
-    const { filePath, groupBy, aggregateColumn, operation, sheet } = args;
-    const data = await this.readFileContent(filePath, sheet);
-    
-    if (data.length <= 1) {
-      throw new Error('File has no data rows');
-    }
-    
-    const groupByIndex = isNaN(Number(groupBy)) ? data[0].indexOf(groupBy) : Number(groupBy);
-    const aggIndex = isNaN(Number(aggregateColumn)) ? data[0].indexOf(aggregateColumn) : Number(aggregateColumn);
-    
-    if (groupByIndex === -1 || aggIndex === -1) {
-      throw new Error('One or both columns not found');
-    }
-    
-    // Group data
-    const groups: Record<string, number[]> = {};
-    for (let i = 1; i < data.length; i++) {
-      const groupKey = String(data[i][groupByIndex]);
-      const value = Number(data[i][aggIndex]);
-      
-      if (!groups[groupKey]) {
-        groups[groupKey] = [];
-      }
-      
-      if (!isNaN(value)) {
-        groups[groupKey].push(value);
-      }
-    }
-    
-    // Calculate aggregations
-    const results: Array<{group: string, value: number, count: number}> = [];
-    for (const [group, values] of Object.entries(groups)) {
-      if (values.length === 0) continue;
-      
-      let result: number;
-      switch (operation) {
-        case 'sum':
-          result = values.reduce((a: number, b: number) => a + b, 0);
-          break;
-        case 'average':
-          result = values.reduce((a: number, b: number) => a + b, 0) / values.length;
-          break;
-        case 'count':
-          result = values.length;
-          break;
-        case 'min':
-          result = Math.min(...values);
-          break;
-        case 'max':
-          result = Math.max(...values);
-          break;
-        default:
-          result = 0;
-      }
-      
-      results.push({
-        group,
-        value: Math.round(result * 100) / 100,
-        count: values.length
-      });
-    }
-    
-    // Sort by value descending
-    results.sort((a, b) => b.value - a.value);
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            pivotTable: {
-              groupBy: data[0][groupByIndex],
-              aggregateColumn: data[0][aggIndex],
-              operation,
-              totalGroups: results.length,
-              results
-            }
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  // Write/Export Tools Implementation
-  private async writeFile(args: any) {
-    const { filePath, data, headers, sheet = 'Sheet1', sheets } = args;
-    const ext = path.extname(filePath).toLowerCase();
-    const absolutePath = path.resolve(filePath);
-    
-    // Multi-sheet mode for Excel files
-    if (sheets && Array.isArray(sheets)) {
-      if (ext === '.csv') {
-        throw new Error('CSV format does not support multiple sheets. Use .xlsx or .xls for multi-sheet files.');
-      }
-      
-      if (ext !== '.xlsx' && ext !== '.xls') {
-        throw new Error('Multi-sheet mode only works with Excel files (.xlsx or .xls)');
-      }
-      
-      const workbook = XLSX.utils.book_new();
-      let totalRows = 0;
-      let totalColumns = 0;
-      
-      for (const sheetData of sheets) {
-        if (!sheetData.data || !Array.isArray(sheetData.data)) {
-          throw new Error(`Sheet "${sheetData.name}" must have valid data array`);
-        }
-        
-        const fullData = sheetData.headers 
-          ? [sheetData.headers, ...sheetData.data] 
-          : sheetData.data;
-        
-        if (fullData.length === 0) {
-          // Add empty row if no data
-          fullData.push([]);
-        }
-        
-        const worksheet = XLSX.utils.aoa_to_sheet(fullData);
-        XLSX.utils.book_append_sheet(workbook, worksheet, sheetData.name);
-        
-        totalRows += fullData.length;
-        if (fullData.length > 0 && Array.isArray(fullData[0])) {
-          totalColumns = Math.max(totalColumns, fullData[0].length || 0);
-        }
-      }
-      
-      XLSX.writeFile(workbook, absolutePath);
-      
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              filePath: absolutePath,
-              mode: 'multi-sheet',
-              sheetsWritten: sheets.length,
-              sheetNames: sheets.map(s => s.name),
-              totalRowsWritten: totalRows,
-              maxColumnsWritten: totalColumns,
-            }, null, 2),
-          },
-        ],
-      };
-    }
-    
-    // Single sheet mode (backward compatible)
-    if (!data || !Array.isArray(data)) {
-      throw new Error('Either "data" (for single sheet) or "sheets" (for multiple sheets) must be provided.');
-    }
-    
-    const fullData = headers ? [headers, ...data] : data;
-    
-    if (ext === '.csv') {
-      // Write CSV file
-      const csvContent = csvStringify.stringify(fullData);
-      await fs.writeFile(absolutePath, csvContent, 'utf-8');
-    } else if (ext === '.xlsx' || ext === '.xls') {
-      // Write Excel file
-      const workbook = XLSX.utils.book_new();
-      const worksheet = XLSX.utils.aoa_to_sheet(fullData);
-      XLSX.utils.book_append_sheet(workbook, worksheet, sheet);
-      XLSX.writeFile(workbook, absolutePath);
-    } else {
-      throw new Error('Unsupported file format. Please use .csv, .xlsx, or .xls extension.');
-    }
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            success: true,
-            filePath: absolutePath,
-            mode: 'single-sheet',
-            sheetName: ext === '.csv' ? null : sheet,
-            rowsWritten: fullData.length,
-            columnsWritten: fullData[0]?.length || 0,
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  private async addSheet(args: any) {
-    const { filePath, sheetName, data, headers, position } = args;
-    const ext = path.extname(filePath).toLowerCase();
-    const absolutePath = path.resolve(filePath);
-    
-    if (ext !== '.xlsx' && ext !== '.xls') {
-      throw new Error('add_sheet only works with Excel files (.xlsx or .xls)');
-    }
-    
-    try {
-      await fs.access(absolutePath);
-    } catch {
-      throw new Error(`File not found: ${filePath}`);
-    }
-    
-    // Read existing workbook
-    const workbook = XLSX.readFile(absolutePath);
-    
-    // Check if sheet name already exists
-    if (workbook.SheetNames.includes(sheetName)) {
-      throw new Error(`Sheet "${sheetName}" already exists in the workbook`);
-    }
-    
-    // Prepare data with headers if provided
-    const fullData = headers ? [headers, ...data] : data;
-    
-    // Create new worksheet
-    const worksheet = XLSX.utils.aoa_to_sheet(fullData);
-    
-    // Add sheet at specified position or at the end
-    if (position !== undefined && position >= 0 && position <= workbook.SheetNames.length) {
-      // Insert at specific position
-      workbook.SheetNames.splice(position, 0, sheetName);
-      workbook.Sheets[sheetName] = worksheet;
-    } else {
-      // Append at the end
-      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-    }
-    
-    // Write the updated workbook
-    XLSX.writeFile(workbook, absolutePath);
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            success: true,
-            filePath: absolutePath,
-            sheetName,
-            sheetCount: workbook.SheetNames.length,
-            sheetNames: workbook.SheetNames,
-            rowsAdded: fullData.length,
-            columnsAdded: fullData[0]?.length || 0,
-            position: position !== undefined ? position : workbook.SheetNames.length - 1,
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  private async writeMultiSheet(args: any) {
-    const { filePath, sheets, sheetReferences = true } = args;
-    const ext = path.extname(filePath).toLowerCase();
-    const absolutePath = path.resolve(filePath);
-    
-    if (ext !== '.xlsx' && ext !== '.xls') {
-      throw new Error('write_multi_sheet only works with Excel files (.xlsx or .xls)');
-    }
-    
-    const workbook = XLSX.utils.book_new();
-    const sheetInfo: any[] = [];
-    
-    // First pass: Create all sheets with data
-    for (const sheetDef of sheets) {
-      const { name, data, headers, formulas } = sheetDef;
-      
-      // Prepare data with headers if provided
-      const fullData = headers ? [headers, ...data] : data;
-      
-      // Create worksheet
-      const worksheet = XLSX.utils.aoa_to_sheet(fullData);
-      
-      // Apply formulas if provided
-      if (formulas && Array.isArray(formulas)) {
-        for (const formulaDef of formulas) {
-          const { cell, formula } = formulaDef;
-          const cellAddr = this.parseA1Notation(cell);
-          
-          // Set formula in worksheet
-          if (!worksheet[cell]) {
-            worksheet[cell] = {};
-          }
-          worksheet[cell].f = formula;
-          
-          // If the formula starts with =, remove it for the stored formula
-          const cleanFormula = formula.startsWith('=') ? formula.substring(1) : formula;
-          worksheet[cell].f = cleanFormula;
-        }
-      }
-      
-      // Add sheet to workbook
-      XLSX.utils.book_append_sheet(workbook, worksheet, name);
-      
-      sheetInfo.push({
-        name,
-        rowCount: fullData.length,
-        columnCount: (fullData.length > 0 && fullData[0]) ? fullData[0].length : 0,
-        formulaCount: formulas?.length || 0,
-      });
-    }
-    
-    // Update sheet ranges if needed
-    for (const sheetName of workbook.SheetNames) {
-      const worksheet = workbook.Sheets[sheetName];
-      if (!worksheet['!ref']) {
-        const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
-        worksheet['!ref'] = XLSX.utils.encode_range(range);
-      }
-    }
-    
-    // Write the workbook
-    XLSX.writeFile(workbook, absolutePath);
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            success: true,
-            filePath: absolutePath,
-            mode: 'multi-sheet-advanced',
-            sheetsCreated: sheets.length,
-            sheetReferences: sheetReferences,
-            sheets: sheetInfo,
-            totalFormulas: sheetInfo.reduce((sum, sheet) => sum + sheet.formulaCount, 0),
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  private async exportAnalysis(args: any) {
-    const { analysisType, sourceFile, outputFile, analysisParams } = args;
-    
-    let result: any;
-    let exportData: any[][] = [];
-    
-    switch (analysisType) {
-      case 'pivot_table': {
-        // Run pivot table analysis
-        const pivotResult = await this.pivotTable({
-          filePath: sourceFile,
-          ...analysisParams
-        });
-        const pivotData = JSON.parse(pivotResult.content[0].text);
-        
-        // Convert to tabular format
-        exportData = [
-          ['Group', 'Value', 'Count'],
-          ...pivotData.pivotTable.results.map((r: any) => [r.group, r.value, r.count])
-        ];
-        break;
-      }
-      
-      case 'statistical_analysis': {
-        // Run statistical analysis
-        const statsResult = await this.statisticalAnalysis({
-          filePath: sourceFile,
-          ...analysisParams
-        });
-        const statsData = JSON.parse(statsResult.content[0].text);
-        
-        // Convert to tabular format
-        exportData = [
-          ['Metric', 'Value'],
-          ['Column', statsData.column],
-          ['Count', statsData.statistics.count],
-          ['Sum', statsData.statistics.sum],
-          ['Mean', statsData.statistics.mean],
-          ['Median', statsData.statistics.median],
-          ['Min', statsData.statistics.min],
-          ['Max', statsData.statistics.max],
-          ['Range', statsData.statistics.range],
-          ['Std Dev', statsData.statistics.standardDeviation],
-          ['Variance', statsData.statistics.variance],
-          ['CV%', statsData.statistics.coefficientOfVariation],
-          ['Q1', statsData.statistics.quartiles.q1],
-          ['Q3', statsData.statistics.quartiles.q3],
-          ['IQR', statsData.statistics.quartiles.iqr],
-          ['Skewness', statsData.statistics.skewness]
-        ];
-        break;
-      }
-      
-      case 'correlation': {
-        // Run correlation analysis
-        const corrResult = await this.correlationAnalysis({
-          filePath: sourceFile,
-          ...analysisParams
-        });
-        const corrData = JSON.parse(corrResult.content[0].text);
-        
-        // Convert to tabular format
-        exportData = [
-          ['Metric', 'Value'],
-          ['Column 1', corrData.column1],
-          ['Column 2', corrData.column2],
-          ['Correlation', corrData.correlation],
-          ['R-squared', corrData.rSquared],
-          ['P-value', corrData.pValue || 'N/A'],
-          ['Interpretation', corrData.interpretation]
-        ];
-        break;
-      }
-      
-      case 'data_profile': {
-        // Run data profiling
-        const profileResult = await this.dataProfile({
-          filePath: sourceFile,
-          ...analysisParams
-        });
-        const profileData = JSON.parse(profileResult.content[0].text);
-        
-        // Convert to tabular format
-        const headers = ['Column', 'Type', 'Count', 'Unique', 'Missing', 'Missing%'];
-        const rows = profileData.columns.map((col: any) => [
-          col.name,
-          col.type,
-          col.count,
-          col.unique,
-          col.missing,
-          col.missingPercentage
-        ]);
-        
-        exportData = [headers, ...rows];
-        break;
-      }
-      
-      default:
-        throw new Error(`Unsupported analysis type: ${analysisType}`);
-    }
-    
-    // Write the analysis results to file
-    await this.writeFile({
-      filePath: outputFile,
-      data: exportData.slice(1), // Remove headers
-      headers: exportData[0] // Use first row as headers
-    });
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            success: true,
-            analysisType,
-            sourceFile,
-            outputFile,
-            rowsExported: exportData.length,
-          }, null, 2),
-        },
-      ],
-    };
-  }
-
-  // AI-Powered Methods
-  private async evaluateFormula(args: any) {
-    const { formula, context = {} } = args;
-    
-    try {
-      // Parse the formula
-      const ast = parseFormula(formula);
-      
-      // Create a workbook context from the provided context
-      const workbookContext: WorkbookContext = {
-        getCellValue: (reference: string) => {
-          return context[reference] || 0;
-        },
-        getNamedRangeValue: (name: string) => {
-          return context[name] || 0;
-        },
-        getRangeValues: (range: string) => {
-          // Simple implementation - can be enhanced
-          return context[range] || [];
-        },
-        getSheetCellValue: (sheetName: string, reference: string) => {
-          // For sheet references, try to get from context using proper Excel sheet!reference format
-          const key = `${sheetName}!${reference}`;
-          return context[key] || context[reference] || 0;
-        },
-        getSheetRangeValues: (sheetName: string, range: string) => {
-          // For sheet range references, try to get from context using proper Excel sheet!range format
-          const key = `${sheetName}!${range}`;
-          return context[key] || context[range] || [];
-        }
-      };
-      
-      // Evaluate the formula
-      const result = this.formulaEvaluator.evaluate(ast, workbookContext);
-      
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              formula,
-              result,
-              success: true
-            }, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              formula,
-              error: error instanceof Error ? error.message : 'Unknown error',
-              success: false
-            }, null, 2),
-          },
-        ],
-      };
-    }
-  }
-
-  private async parseNaturalLanguage(args: any) {
-    const { query, filePath, provider } = args;
-    
-    try {
-      // Get file context if provided
-      let context = undefined;
-      if (filePath) {
-        try {
-          const data = await this.readFileContent(filePath);
-          context = {
-            headers: data[0],
-            rowCount: data.length,
-            columnCount: data[0]?.length || 0,
-            dataTypes: this.detectDataTypes(data),
-            activeCell: 'A1',
-            selectedRange: 'A1:A1'
-          };
-        } catch (error) {
-          // File context is optional, continue without it
-        }
-      }
-      
-      // Parse the natural language query
-      const result = await this.nlpProcessor.parseCommand(query, context, provider);
-      
-      // If it's a formula, also try to build the actual formula
-      if (result.type === 'formula') {
-        try {
-          const formulaResult = await this.nlpProcessor.buildFormula(query, context, provider);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  query,
-                  command: result,
-                  formula: formulaResult,
-                  success: true,
-                  provider: this.nlpProcessor.getActiveProvider()?.name || 'Local'
-                }, null, 2),
-              },
-            ],
-          };
-        } catch (formulaError) {
-          // Fallback to just the command result
-        }
-      }
-      
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              query,
-              result,
-              success: true,
-              provider: this.nlpProcessor.getActiveProvider()?.name || 'Local'
-            }, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              query,
-              error: error instanceof Error ? error.message : 'Unknown error',
-              success: false
-            }, null, 2),
-          },
-        ],
-      };
-    }
-  }
-
-  private async explainFormula(args: any) {
-    const { formula, provider } = args;
-    
-    try {
-      const explanation = await this.nlpProcessor.explainFormula(formula, provider);
-      
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              formula,
-              explanation,
-              success: true,
-              provider: this.nlpProcessor.getActiveProvider()?.name || 'Local'
-            }, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              formula,
-              error: error instanceof Error ? error.message : 'Unknown error',
-              success: false
-            }, null, 2),
-          },
-        ],
-      };
-    }
-  }
-
-  private async getAIProviderStatus(args: any) {
-    try {
-      const providers = this.nlpProcessor.getAvailableProviders();
-      const activeProvider = this.nlpProcessor.getActiveProvider();
-      const healthStatus = await this.nlpProcessor.testProviders();
-      
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              activeProvider,
-              availableProviders: providers,
-              healthStatus,
-              success: true
-            }, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              error: error instanceof Error ? error.message : 'Unknown error',
-              success: false
-            }, null, 2),
-          },
-        ],
-      };
-    }
-  }
-
-  private async smartDataAnalysis(args: any) {
-    const { filePath, sheet, provider } = args;
-    
-    try {
-      // Read the file
-      const data = await this.readFileContent(filePath, sheet);
-      
-      if (data.length === 0) {
-        throw new Error('File is empty');
-      }
-      
-      // Create context for AI analysis
-      const context = {
-        headers: data[0],
-        rowCount: data.length,
-        columnCount: data[0]?.length || 0,
-        dataTypes: this.detectDataTypes(data),
-        sampleData: data.slice(0, 6), // First 5 data rows + header
-        activeCell: 'A1',
-        selectedRange: 'A1:A1'
-      };
-      
-      // Generate AI suggestions
-      const suggestions = await this.nlpProcessor.suggestFormulas(context);
-      
-      // Get data profile for additional insights
-      const profile = await this.dataProfile({ filePath, sheet });
-      
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              filePath,
-              context: {
-                headers: context.headers,
-                rowCount: context.rowCount,
-                columnCount: context.columnCount,
-                dataTypes: context.dataTypes
-              },
-              aiSuggestions: suggestions,
-              dataProfile: JSON.parse(profile.content[0].text),
-              success: true,
-              provider: this.nlpProcessor.getActiveProvider()?.name || 'Local'
-            }, null, 2),
-          },
-        ],
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              filePath,
-              error: error instanceof Error ? error.message : 'Unknown error',
-              success: false
-            }, null, 2),
-          },
-        ],
-      };
-    }
-  }
-
-  private detectDataTypes(data: any[][]): Record<string, 'number' | 'text' | 'date' | 'formula'> {
-    if (data.length < 2) return {};
-    
-    const headers = data[0];
-    const types: Record<string, 'number' | 'text' | 'date' | 'formula'> = {};
-    
-    for (let col = 0; col < headers.length; col++) {
-      const columnData = data.slice(1).map(row => row[col]).filter(val => val != null && val !== '');
-      
-      if (columnData.length === 0) {
-        types[headers[col]] = 'text';
-        continue;
-      }
-      
-      // Check if all values are numbers
-      const numericCount = columnData.filter(val => !isNaN(Number(val))).length;
-      const dateCount = columnData.filter(val => !isNaN(Date.parse(val))).length;
-      
-      if (numericCount === columnData.length) {
-        types[headers[col]] = 'number';
-      } else if (dateCount === columnData.length) {
-        types[headers[col]] = 'date';
-      } else {
-        types[headers[col]] = 'text';
-      }
-    }
-    
-    return types;
-  }
-
-  // Bulk Operations Methods
+  // Legacy methods (to be moved to dedicated handlers later)
   private async bulkAggregateMultiFiles(args: any) {
     try {
       const result = await this.bulkOperations.aggregateMultiFiles({
         filePaths: args.filePaths,
         column: args.column,
         operation: args.operation,
-        consolidate: args.consolidate !== false, // Default to true
+        consolidate: args.consolidate !== false,
         sheet: args.sheet,
         filters: args.filters
       });
@@ -2148,7 +882,6 @@ class ExcelCSVServer {
 
   private async bulkFilterMultiFiles(args: any) {
     try {
-      // Validate required parameters
       if (args.outputMode === 'export' && !args.outputPath) {
         throw new Error('outputPath is required when outputMode is "export"');
       }
@@ -2188,7 +921,6 @@ class ExcelCSVServer {
     }
   }
 
-  // Data Validation Methods
   private async validateDataConsistency(args: any) {
     try {
       const result = await this.validationEngine.validateDataConsistency(
@@ -2238,7 +970,6 @@ class ExcelCSVServer {
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    // console.error('Excel/CSV MCP server running on stdio');
   }
 }
 

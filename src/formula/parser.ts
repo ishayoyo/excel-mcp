@@ -3,6 +3,19 @@
  * Tokenizes and parses formulas into an Abstract Syntax Tree (AST)
  */
 
+// List of valid Excel function names
+const VALID_FUNCTIONS = new Set([
+  'SUM', 'AVERAGE', 'COUNT', 'COUNTA', 'MAX', 'MIN',
+  'ROUND', 'ROUNDUP', 'ROUNDDOWN', 'ABS', 'SQRT', 'POWER', 'EXP', 'LN', 'LOG', 'PI', 'RAND', 'RANDBETWEEN',
+  'SIN', 'COS', 'TAN', 'ASIN', 'ACOS', 'ATAN',
+  'CONCATENATE', 'LEFT', 'RIGHT', 'MID', 'LEN', 'LOWER', 'UPPER', 'PROPER', 'TRIM',
+  'FIND', 'SEARCH', 'REPLACE', 'SUBSTITUTE',
+  'IF', 'AND', 'OR', 'NOT', 'XOR', 'IFERROR', 'IFNA',
+  'SUMIF', 'COUNTIF', 'SUMIFS', 'COUNTIFS',
+  'VLOOKUP', 'HLOOKUP', 'INDEX', 'MATCH',
+  'TODAY', 'NOW', 'YEAR', 'MONTH', 'DAY', 'HOUR', 'MINUTE', 'SECOND'
+]);
+
 export enum TokenType {
   // Literals
   NUMBER = 'NUMBER',
@@ -457,21 +470,28 @@ export class FormulaParser {
 
   private parseFunction(): ASTNode {
     const funcToken = this.previous();
+    const funcName = funcToken.value.toUpperCase();
+
+    // Validate function name
+    if (!VALID_FUNCTIONS.has(funcName)) {
+      throw new Error(`Unknown function: ${funcName}`);
+    }
+
     const args: ASTNode[] = [];
-    
-    this.consume(TokenType.LEFT_PAREN, `Expected '(' after function ${funcToken.value}`);
-    
+
+    this.consume(TokenType.LEFT_PAREN, `Expected '(' after function ${funcName}`);
+
     if (!this.check(TokenType.RIGHT_PAREN)) {
       do {
         args.push(this.parseExpression());
       } while (this.match(TokenType.COMMA));
     }
-    
+
     this.consume(TokenType.RIGHT_PAREN, `Expected ')' after function arguments`);
-    
+
     return {
       type: 'Function',
-      value: funcToken.value,
+      value: funcName,
       children: args,
       position: funcToken.position
     };

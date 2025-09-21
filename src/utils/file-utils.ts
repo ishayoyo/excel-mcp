@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as csv from 'csv-parse/sync';
 import * as XLSX from 'xlsx';
-import { CellAddress } from '../types/shared.js';
+import { CellAddress } from '../types/shared';
 
 export function parseA1Notation(a1: string): CellAddress {
   const match = a1.match(/^([A-Z]+)(\d+)$/);
@@ -19,9 +19,20 @@ export function parseA1Notation(a1: string): CellAddress {
   return { row, col };
 }
 
+export interface FileReadResult {
+  data: any[][];
+  warnings?: string[];
+}
+
 export async function readFileContent(filePath: string, sheet?: string): Promise<any[][]> {
+  const result = await readFileContentWithWarnings(filePath, sheet);
+  return result.data;
+}
+
+export async function readFileContentWithWarnings(filePath: string, sheet?: string): Promise<FileReadResult> {
   const ext = path.extname(filePath).toLowerCase();
   const absolutePath = path.resolve(filePath);
+  const warnings: string[] = [];
 
   try {
     await fs.access(absolutePath);
@@ -31,16 +42,56 @@ export async function readFileContent(filePath: string, sheet?: string): Promise
 
   if (ext === '.csv') {
     const content = await fs.readFile(absolutePath, 'utf-8');
-    return csv.parse(content, {
-      skip_empty_lines: true,
-      relax_quotes: true,
-      relax_column_count: true,
-    });
+
+    // Check for binary content that might cause issues
+    if (content.includes('\u0000') || content.includes('\uFFFD')) {
+      throw new Error('File appears to contain binary data and cannot be read as CSV');
+    }
+
+    try {
+      const parsed = csv.parse(content, {
+        skip_empty_lines: true,
+        relax_quotes: true,
+        relax_column_count: true,
+      });
+
+      // Additional validation - ensure we have some valid data
+      if (parsed.length === 0) {
+        throw new Error('empty file: No valid CSV data found in file');
+      }
+
+      // Check for malformed CSV issues and add warnings
+      if (parsed.length > 1) {
+        const expectedColumns = parsed[0].length;
+        let inconsistentRows = 0;
+
+        for (let i = 1; i < parsed.length; i++) {
+          if (parsed[i].length !== expectedColumns) {
+            inconsistentRows++;
+          }
+        }
+
+        if (inconsistentRows > 0) {
+          warnings.push(`CSV file has ${inconsistentRows} rows with inconsistent column count`);
+        }
+      }
+
+      // Check for potential data quality issues
+      const emptyRows = parsed.filter((row: any[]) => row.every((cell: any) => cell === '')).length;
+      if (emptyRows > 0) {
+        warnings.push(`Found ${emptyRows} completely empty rows`);
+      }
+
+      return { data: parsed, warnings: warnings.length > 0 ? warnings : undefined };
+    } catch (parseError) {
+      throw new Error(`Failed to parse CSV file: ${parseError instanceof Error ? parseError.message : 'Unknown parsing error'}`);
+    }
   } else if (ext === '.xlsx' || ext === '.xls') {
     const workbook = XLSX.readFile(absolutePath);
     const sheetName = sheet || workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    return XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
+    return { data, warnings: warnings.length > 0 ? warnings : undefined };
   } else {
     throw new Error('Unsupported file format. Please use .csv, .xlsx, or .xls files.');
   }

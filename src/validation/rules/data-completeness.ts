@@ -3,8 +3,8 @@
  * Checks for missing or empty required fields
  */
 
-import { BaseValidationRule } from './base-rule.js';
-import { ValidationContext, ValidationIssue, DataIndexes } from '../core/validation-result.js';
+import { BaseValidationRule } from './base-rule';
+import { ValidationContext, ValidationIssue, DataIndexes } from '../core/validation-result';
 
 export interface DataCompletenessConfig {
   requiredColumns?: string[];

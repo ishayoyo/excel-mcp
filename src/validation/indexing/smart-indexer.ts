@@ -2,8 +2,8 @@
  * Smart Indexer - Creates fast lookup indexes for validation
  */
 
-import { ValidationContext, DataIndexes, ColumnStats } from '../core/validation-result.js';
-import { ValidationContextBuilder } from '../core/validation-context.js';
+import { ValidationContext, DataIndexes, ColumnStats } from '../core/validation-result';
+import { ValidationContextBuilder } from '../core/validation-context';
 
 export class SmartIndexer {
   private contextBuilder = new ValidationContextBuilder();

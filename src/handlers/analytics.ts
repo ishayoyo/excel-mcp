@@ -1,5 +1,5 @@
-import { ToolResponse, ToolArgs } from '../types/shared.js';
-import { readFileContent } from '../utils/file-utils.js';
+import { ToolResponse, ToolArgs } from '../types/shared';
+import { readFileContent } from '../utils/file-utils';
 
 export class AnalyticsHandler {
   async statisticalAnalysis(args: ToolArgs): Promise<ToolResponse> {
@@ -64,6 +64,7 @@ export class AnalyticsHandler {
         {
           type: 'text',
           text: JSON.stringify({
+            success: true,
             column: data[0][colIndex],
             statistics: {
               count: n,
@@ -146,9 +147,11 @@ export class AnalyticsHandler {
         {
           type: 'text',
           text: JSON.stringify({
+            success: true,
             column1: data[0][col1Index],
             column2: data[0][col2Index],
-            correlation: {
+            correlation: Math.round(correlation * 10000) / 10000, // Simplified for test compatibility
+            correlationDetails: {
               coefficient: Math.round(correlation * 10000) / 10000,
               strength,
               direction: correlation > 0 ? 'Positive' : correlation < 0 ? 'Negative' : 'None',
@@ -225,7 +228,7 @@ export class AnalyticsHandler {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(profile, null, 2),
+          text: JSON.stringify({ success: true, profile }, null, 2),
         },
       ],
     };
@@ -302,6 +305,7 @@ export class AnalyticsHandler {
         {
           type: 'text',
           text: JSON.stringify({
+            success: true,
             pivotTable: {
               groupBy: data[0][groupByIndex],
               aggregateColumn: data[0][aggIndex],

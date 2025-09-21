@@ -2,7 +2,7 @@
  * Validation Reporter - Creates actionable validation reports
  */
 
-import { ValidationResult, ValidationIssue, ValidationSummary } from '../core/validation-result.js';
+import { ValidationResult, ValidationIssue, ValidationSummary } from '../core/validation-result';
 
 export class ValidationReporter {
 

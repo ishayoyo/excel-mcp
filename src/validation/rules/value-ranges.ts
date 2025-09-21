@@ -3,8 +3,8 @@
  * Checks for values outside expected statistical ranges (anomaly detection)
  */
 
-import { BaseValidationRule } from './base-rule.js';
-import { ValidationContext, ValidationIssue, DataIndexes, ColumnStats } from '../core/validation-result.js';
+import { BaseValidationRule } from './base-rule';
+import { ValidationContext, ValidationIssue, DataIndexes, ColumnStats } from '../core/validation-result';
 
 export interface ValueRangeConfig {
   columns?: string[];

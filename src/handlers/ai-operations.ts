@@ -1,8 +1,8 @@
-import { ToolResponse, ToolArgs } from '../types/shared.js';
-import { readFileContent, detectDataTypes } from '../utils/file-utils.js';
-import { NLPProcessor } from '../ai/nlp-processor.js';
-import { parseFormula } from '../formula/parser.js';
-import { FormulaEvaluator, WorkbookContext } from '../formula/evaluator.js';
+import { ToolResponse, ToolArgs } from '../types/shared';
+import { readFileContent, detectDataTypes } from '../utils/file-utils';
+import { NLPProcessor } from '../ai/nlp-processor';
+import { parseFormula } from '../formula/parser';
+import { FormulaEvaluator, WorkbookContext } from '../formula/evaluator';
 
 export class AIOperationsHandler {
   private nlpProcessor: NLPProcessor;
@@ -11,6 +11,35 @@ export class AIOperationsHandler {
   constructor() {
     this.nlpProcessor = new NLPProcessor();
     this.formulaEvaluator = new FormulaEvaluator();
+  }
+
+  /**
+   * Expand a range reference into an array of values from individual cells
+   */
+  private expandRange(range: string, context: any): any[][] {
+    // Simple range expansion for A1:A3 format
+    const rangeMatch = range.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
+    if (!rangeMatch) {
+      return [];
+    }
+
+    const [, startCol, startRow, endCol, endRow] = rangeMatch;
+    const startRowNum = parseInt(startRow);
+    const endRowNum = parseInt(endRow);
+
+    if (startCol !== endCol) {
+      // For now, only handle single column ranges
+      return [];
+    }
+
+    const result: any[][] = [];
+    for (let row = startRowNum; row <= endRowNum; row++) {
+      const cellRef = `${startCol}${row}`;
+      const value = context[cellRef] || 0;
+      result.push([value]);
+    }
+
+    return result;
   }
 
   async evaluateFormula(args: ToolArgs): Promise<ToolResponse> {
@@ -23,14 +52,34 @@ export class AIOperationsHandler {
       // Create a workbook context from the provided context
       const workbookContext: WorkbookContext = {
         getCellValue: (reference: string) => {
-          return context[reference] || 0;
+          const value = context[reference] || 0;
+
+          // If the value is a formula, detect potential circular references
+          if (typeof value === 'string' && value.startsWith('=')) {
+            // This is a formula reference, check for circular references
+            if (value === formula) {
+              throw new Error('Circular reference detected');
+            }
+            // For formulas that reference the same cell, also check
+            if (value.includes(reference)) {
+              throw new Error('Circular reference detected');
+            }
+          }
+
+          return value;
         },
         getNamedRangeValue: (name: string) => {
           return context[name] || 0;
         },
         getRangeValues: (range: string) => {
-          // Simple implementation - can be enhanced
-          return context[range] || [];
+          // Check if range is already provided in context
+          if (context[range]) {
+            return context[range];
+          }
+
+          // Try to expand the range from individual cells
+          const expanded = this.expandRange(range, context);
+          return expanded;
         },
         getSheetCellValue: (sheetName: string, reference: string) => {
           // For sheet references, try to get from context using proper Excel sheet!reference format
@@ -47,6 +96,9 @@ export class AIOperationsHandler {
       // Evaluate the formula
       const result = this.formulaEvaluator.evaluate(ast, workbookContext);
 
+      // Check if result is an error
+      const isError = typeof result === 'string' && result.startsWith('#');
+
       return {
         content: [
           {
@@ -54,7 +106,8 @@ export class AIOperationsHandler {
             text: JSON.stringify({
               formula,
               result,
-              success: true
+              success: !isError,
+              ...(isError && { error: result })
             }, null, 2),
           },
         ],
@@ -101,25 +154,12 @@ export class AIOperationsHandler {
       const result = await this.nlpProcessor.parseCommand(query, context, provider);
 
       // If it's a formula, also try to build the actual formula
+      let formulaResult = undefined;
       if (result.type === 'formula') {
         try {
-          const formulaResult = await this.nlpProcessor.buildFormula(query, context, provider);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  query,
-                  command: result,
-                  formula: formulaResult,
-                  success: true,
-                  provider: this.nlpProcessor.getActiveProvider()?.name || 'Local'
-                }, null, 2),
-              },
-            ],
-          };
+          formulaResult = await this.nlpProcessor.buildFormula(query, context, provider);
         } catch (formulaError) {
-          // Fallback to just the command result
+          // Formula building failed, continue with just the command
         }
       }
 
@@ -129,7 +169,8 @@ export class AIOperationsHandler {
             type: 'text',
             text: JSON.stringify({
               query,
-              result,
+              result: result, // Keep the command result in 'result' field for consistency
+              formula: formulaResult,
               success: true,
               provider: this.nlpProcessor.getActiveProvider()?.name || 'Local'
             }, null, 2),

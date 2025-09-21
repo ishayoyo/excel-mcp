@@ -2,19 +2,19 @@
  * Validation Engine - Main orchestrator for data validation
  */
 
-import { ValidationContextBuilder } from './validation-context.js';
-import { SmartIndexer } from '../indexing/smart-indexer.js';
-import { ValidationReporter } from '../reporting/validation-reporter.js';
-import { BaseValidationRule } from '../rules/base-rule.js';
-import { ReferentialIntegrityRule } from '../rules/referential-integrity.js';
-import { DataCompletenessRule } from '../rules/data-completeness.js';
-import { ValueRangeRule } from '../rules/value-ranges.js';
+import { ValidationContextBuilder } from './validation-context';
+import { SmartIndexer } from '../indexing/smart-indexer';
+import { ValidationReporter } from '../reporting/validation-reporter';
+import { BaseValidationRule } from '../rules/base-rule';
+import { ReferentialIntegrityRule } from '../rules/referential-integrity';
+import { DataCompletenessRule } from '../rules/data-completeness';
+import { ValueRangeRule } from '../rules/value-ranges';
 import {
   ValidationResult,
   ValidationSummary,
   ValidationIssue,
   ValidationContext
-} from './validation-result.js';
+} from './validation-result';
 
 export interface ValidationEngineConfig {
   autoDetectRelationships?: boolean;

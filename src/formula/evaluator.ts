@@ -22,23 +22,34 @@ export interface WorkbookContext {
 export class FormulaEvaluator {
   private functions: ExcelFunctions;
   private cache: Map<string, any> = new Map();
-  
+  private evaluatingCells: Set<string> = new Set();
+
   constructor() {
     this.functions = new ExcelFunctions();
   }
 
-  evaluate(ast: ASTNode, context: WorkbookContext): any {
+  evaluate(ast: ASTNode, context: WorkbookContext, currentCell?: string): any {
     try {
-      return this.evaluateNode(ast, context);
+      // Clear evaluation stack for new evaluation
+      if (!currentCell) {
+        this.evaluatingCells.clear();
+      }
+
+      return this.evaluateNode(ast, context, currentCell);
     } catch (error) {
       if (error instanceof FormulaError) {
         return error.errorValue;
       }
       return '#ERROR!';
+    } finally {
+      // Clean up evaluation stack
+      if (currentCell) {
+        this.evaluatingCells.delete(currentCell);
+      }
     }
   }
 
-  private evaluateNode(node: ASTNode, context: WorkbookContext): any {
+  private evaluateNode(node: ASTNode, context: WorkbookContext, currentCell?: string): any {
     switch (node.type) {
       case 'Number':
         return node.value;
@@ -50,20 +61,20 @@ export class FormulaEvaluator {
         return node.value;
         
       case 'CellReference':
-        return this.evaluateCellReference(node.value, context);
-        
+        return this.evaluateCellReference(node.value, context, currentCell);
+
       case 'RangeReference':
         return this.evaluateRangeReference(node.value, context);
-        
+
       case 'NamedRange':
         return context.getNamedRangeValue(node.value);
-        
+
       case 'Function':
         return this.evaluateFunction(node, context);
-        
+
       case 'BinaryOperation':
         return this.evaluateBinaryOperation(node, context);
-        
+
       case 'UnaryOperation':
         return this.evaluateUnaryOperation(node, context);
         
@@ -72,32 +83,45 @@ export class FormulaEvaluator {
     }
   }
 
-  private evaluateCellReference(reference: string, context: WorkbookContext): any {
-    // Check if this is a cross-sheet reference (contains !)
-    const sheetSeparatorIndex = reference.indexOf('!');
-    let value;
-    
-    if (sheetSeparatorIndex > 0) {
-      // Cross-sheet reference: SheetName!CellRef
-      const sheetName = reference.substring(0, sheetSeparatorIndex);
-      const cellRef = reference.substring(sheetSeparatorIndex + 1);
-      value = context.getSheetCellValue(sheetName, cellRef);
-    } else {
-      // Same sheet reference
-      value = context.getCellValue(reference);
+  private evaluateCellReference(reference: string, context: WorkbookContext, currentCell?: string): any {
+    // Detect circular references
+    if (this.evaluatingCells.has(reference)) {
+      throw new FormulaError('#CIRCULAR!');
     }
-    
-    // Handle empty cells
-    if (value === null || value === undefined) {
-      return 0; // Excel treats empty cells as 0 in calculations
+
+    // Add this cell to evaluation stack
+    this.evaluatingCells.add(reference);
+
+    try {
+      // Check if this is a cross-sheet reference (contains !)
+      const sheetSeparatorIndex = reference.indexOf('!');
+      let value;
+
+      if (sheetSeparatorIndex > 0) {
+        // Cross-sheet reference: SheetName!CellRef
+        const sheetName = reference.substring(0, sheetSeparatorIndex);
+        const cellRef = reference.substring(sheetSeparatorIndex + 1);
+        value = context.getSheetCellValue(sheetName, cellRef);
+      } else {
+        // Same sheet reference
+        value = context.getCellValue(reference);
+      }
+
+      // Handle empty cells
+      if (value === null || value === undefined) {
+        return 0; // Excel treats empty cells as 0 in calculations
+      }
+
+      // Handle error values
+      if (typeof value === 'string' && value.startsWith('#')) {
+        throw new FormulaError(value);
+      }
+
+      return value;
+    } finally {
+      // Remove from evaluation stack
+      this.evaluatingCells.delete(reference);
     }
-    
-    // Handle error values
-    if (typeof value === 'string' && value.startsWith('#')) {
-      throw new FormulaError(value);
-    }
-    
-    return value;
   }
 
   private evaluateRangeReference(range: string, context: WorkbookContext): any {

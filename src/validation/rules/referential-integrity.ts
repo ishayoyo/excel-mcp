@@ -3,8 +3,8 @@
  * Checks if foreign key references exist in reference tables
  */
 
-import { BaseValidationRule } from './base-rule.js';
-import { ValidationContext, ValidationIssue, DataIndexes } from '../core/validation-result.js';
+import { BaseValidationRule } from './base-rule';
+import { ValidationContext, ValidationIssue, DataIndexes } from '../core/validation-result';
 
 export interface ReferentialIntegrityConfig {
   keyColumns?: string[];

@@ -48,7 +48,7 @@ export class NLPProcessor {
    */
   async parseCommand(text: string, context?: WorksheetContext, preferredProvider?: ProviderType): Promise<NLPCommand> {
     const prompt = this.buildCommandPrompt(text, context);
-    
+
     try {
       const response = await this.aiManager.createCompletion([
         { role: 'user', content: prompt }
@@ -61,7 +61,6 @@ export class NLPProcessor {
 
       return this.parseCommandResponse(response.content);
     } catch (error) {
-      // console.error('Error parsing command:', error);
       return this.fallbackParser(text);
     }
   }

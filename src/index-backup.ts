@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { Server } from '@modelcontextprotocol/sdk/server/index';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
 import {
   CallToolRequestSchema,
   ErrorCode,
   ListToolsRequestSchema,
   McpError,
-} from '@modelcontextprotocol/sdk/types.js';
+} from '@modelcontextprotocol/sdk/types';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as csv from 'csv-parse/sync';
@@ -15,15 +15,15 @@ import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 
 // AI and Formula Engine imports
-import { NLPProcessor } from './ai/nlp-processor.js';
-import { parseFormula } from './formula/parser.js';
-import { FormulaEvaluator, WorkbookContext } from './formula/evaluator.js';
+import { NLPProcessor } from './ai/nlp-processor';
+import { parseFormula } from './formula/parser';
+import { FormulaEvaluator, WorkbookContext } from './formula/evaluator';
 
 // Bulk Operations imports
-import { BulkOperations } from './bulk/bulk-operations.js';
+import { BulkOperations } from './bulk/bulk-operations';
 
 // Validation Engine imports
-import { ValidationEngine } from './validation/core/validation-engine.js';
+import { ValidationEngine } from './validation/core/validation-engine';
 
 interface CellAddress {
   row: number;

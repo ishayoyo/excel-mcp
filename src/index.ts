@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import 'dotenv/config';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -9,14 +10,14 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 // Handler imports
-import { DataOperationsHandler } from './handlers/data-operations.js';
-import { AnalyticsHandler } from './handlers/analytics.js';
-import { FileOperationsHandler } from './handlers/file-operations.js';
-import { AIOperationsHandler } from './handlers/ai-operations.js';
+import { DataOperationsHandler } from './handlers/data-operations';
+import { AnalyticsHandler } from './handlers/analytics';
+import { FileOperationsHandler } from './handlers/file-operations';
+import { AIOperationsHandler } from './handlers/ai-operations';
 
 // Other imports for existing functionality
-import { BulkOperations } from './bulk/bulk-operations.js';
-import { ValidationEngine } from './validation/core/validation-engine.js';
+import { BulkOperations } from './bulk/bulk-operations';
+import { ValidationEngine } from './validation/core/validation-engine';
 
 class ExcelCSVServer {
   private server: Server;

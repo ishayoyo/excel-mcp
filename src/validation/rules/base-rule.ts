@@ -2,7 +2,7 @@
  * Base Validation Rule - Abstract class for all validation rules
  */
 
-import { ValidationContext, ValidationIssue, DataIndexes } from '../core/validation-result.js';
+import { ValidationContext, ValidationIssue, DataIndexes } from '../core/validation-result';
 
 export abstract class BaseValidationRule {
   abstract name: string;

@@ -1,5 +1,5 @@
-import { ToolResponse, ToolArgs } from '../types/shared.js';
-import { parseA1Notation } from '../utils/file-utils.js';
+import { ToolResponse, ToolArgs } from '../types/shared';
+import { parseA1Notation } from '../utils/file-utils';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as csvStringify from 'csv-stringify/sync';

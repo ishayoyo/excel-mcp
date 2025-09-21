@@ -6,7 +6,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as csv from 'csv-parse/sync';
 import * as XLSX from 'xlsx';
-import { FileValidationContext, ValidationContext, DetectedRelationship, ColumnStats } from './validation-result.js';
+import { FileValidationContext, ValidationContext, DetectedRelationship, ColumnStats } from './validation-result';
 
 export class ValidationContextBuilder {
 

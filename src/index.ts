@@ -19,6 +19,9 @@ import { NLPProcessor } from './ai/nlp-processor.js';
 import { parseFormula } from './formula/parser.js';
 import { FormulaEvaluator, WorkbookContext } from './formula/evaluator.js';
 
+// Bulk Operations imports
+import { BulkOperations } from './bulk/bulk-operations.js';
+
 interface CellAddress {
   row: number;
   col: number;
@@ -28,6 +31,7 @@ class ExcelCSVServer {
   private server: Server;
   private nlpProcessor: NLPProcessor;
   private formulaEvaluator: FormulaEvaluator;
+  private bulkOperations: BulkOperations;
 
   constructor() {
     this.server = new Server(
@@ -45,6 +49,7 @@ class ExcelCSVServer {
     // Initialize AI and Formula engines
     this.nlpProcessor = new NLPProcessor();
     this.formulaEvaluator = new FormulaEvaluator();
+    this.bulkOperations = new BulkOperations();
 
     this.setupHandlers();
   }
@@ -645,6 +650,100 @@ class ExcelCSVServer {
             required: ['filePath'],
           },
         },
+
+        // Bulk Operations Tools
+        {
+          name: 'bulk_aggregate_multi_files',
+          description: 'Aggregate same column across multiple files in parallel',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePaths: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Array of file paths to process'
+              },
+              column: {
+                type: 'string',
+                description: 'Column name or index (0-based) to aggregate'
+              },
+              operation: {
+                type: 'string',
+                enum: ['sum', 'average', 'count', 'min', 'max'],
+                description: 'Aggregation operation'
+              },
+              consolidate: {
+                type: 'boolean',
+                description: 'Whether to return consolidated result or per-file breakdown (default: true)'
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name for Excel files (optional)'
+              },
+              filters: {
+                type: 'array',
+                description: 'Optional filters to apply before aggregation',
+                items: {
+                  type: 'object',
+                  properties: {
+                    column: { type: 'string' },
+                    condition: {
+                      type: 'string',
+                      enum: ['equals', 'contains', 'greater_than', 'less_than', 'not_equals']
+                    },
+                    value: { type: ['string', 'number'] }
+                  },
+                  required: ['column', 'condition', 'value']
+                }
+              }
+            },
+            required: ['filePaths', 'column', 'operation']
+          }
+        },
+        {
+          name: 'bulk_filter_multi_files',
+          description: 'Filter data across multiple files with optional export',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePaths: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Array of file paths to process'
+              },
+              filters: {
+                type: 'array',
+                description: 'Filters to apply to the data',
+                items: {
+                  type: 'object',
+                  properties: {
+                    column: { type: 'string' },
+                    condition: {
+                      type: 'string',
+                      enum: ['equals', 'contains', 'greater_than', 'less_than', 'not_equals']
+                    },
+                    value: { type: ['string', 'number'] }
+                  },
+                  required: ['column', 'condition', 'value']
+                }
+              },
+              outputMode: {
+                type: 'string',
+                enum: ['count', 'export', 'summary'],
+                description: 'How to return results: count only, export to file, or summary with counts'
+              },
+              outputPath: {
+                type: 'string',
+                description: 'Output file path (required when outputMode is "export")'
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name for Excel files (optional)'
+              }
+            },
+            required: ['filePaths', 'filters', 'outputMode']
+          }
+        },
       ],
     }));
 
@@ -695,6 +794,12 @@ class ExcelCSVServer {
             return await this.getAIProviderStatus(args);
           case 'smart_data_analysis':
             return await this.smartDataAnalysis(args);
+
+          // Bulk Operations Tools
+          case 'bulk_aggregate_multi_files':
+            return await this.bulkAggregateMultiFiles(args);
+          case 'bulk_filter_multi_files':
+            return await this.bulkFilterMultiFiles(args);
 
           default:
             throw new McpError(
@@ -1940,6 +2045,87 @@ class ExcelCSVServer {
     }
     
     return types;
+  }
+
+  // Bulk Operations Methods
+  private async bulkAggregateMultiFiles(args: any) {
+    try {
+      const result = await this.bulkOperations.aggregateMultiFiles({
+        filePaths: args.filePaths,
+        column: args.column,
+        operation: args.operation,
+        consolidate: args.consolidate !== false, // Default to true
+        sheet: args.sheet,
+        filters: args.filters
+      });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              ...result
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              operation: 'bulk_aggregate_multi_files'
+            }, null, 2),
+          },
+        ],
+      };
+    }
+  }
+
+  private async bulkFilterMultiFiles(args: any) {
+    try {
+      // Validate required parameters
+      if (args.outputMode === 'export' && !args.outputPath) {
+        throw new Error('outputPath is required when outputMode is "export"');
+      }
+
+      const result = await this.bulkOperations.filterMultiFiles({
+        filePaths: args.filePaths,
+        filters: args.filters,
+        outputMode: args.outputMode,
+        outputPath: args.outputPath,
+        sheet: args.sheet
+      });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              ...result
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              operation: 'bulk_filter_multi_files'
+            }, null, 2),
+          },
+        ],
+      };
+    }
   }
 
   async run() {

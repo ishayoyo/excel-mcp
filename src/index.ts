@@ -22,6 +22,9 @@ import { FormulaEvaluator, WorkbookContext } from './formula/evaluator.js';
 // Bulk Operations imports
 import { BulkOperations } from './bulk/bulk-operations.js';
 
+// Validation Engine imports
+import { ValidationEngine } from './validation/core/validation-engine.js';
+
 interface CellAddress {
   row: number;
   col: number;
@@ -32,6 +35,7 @@ class ExcelCSVServer {
   private nlpProcessor: NLPProcessor;
   private formulaEvaluator: FormulaEvaluator;
   private bulkOperations: BulkOperations;
+  private validationEngine: ValidationEngine;
 
   constructor() {
     this.server = new Server(
@@ -50,6 +54,7 @@ class ExcelCSVServer {
     this.nlpProcessor = new NLPProcessor();
     this.formulaEvaluator = new FormulaEvaluator();
     this.bulkOperations = new BulkOperations();
+    this.validationEngine = new ValidationEngine();
 
     this.setupHandlers();
   }
@@ -651,6 +656,57 @@ class ExcelCSVServer {
           },
         },
 
+        // Data Validation Tools
+        {
+          name: 'validate_data_consistency',
+          description: 'Cross-validate data integrity across related files',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              primaryFile: {
+                type: 'string',
+                description: 'Path to the primary data file to validate'
+              },
+              referenceFiles: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Array of reference file paths for validation'
+              },
+              validationRules: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  enum: ['referential_integrity', 'data_completeness', 'value_ranges']
+                },
+                description: 'Specific validation rules to apply (optional, defaults to all)'
+              },
+              keyColumns: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Specific columns to validate for referential integrity (optional)'
+              },
+              autoDetectRelationships: {
+                type: 'boolean',
+                description: 'Automatically detect column relationships (default: true)'
+              },
+              tolerance: {
+                type: 'number',
+                description: 'Tolerance for numeric validations (default: 0.01)'
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name for Excel files (optional)'
+              },
+              reportFormat: {
+                type: 'string',
+                enum: ['summary', 'detailed'],
+                description: 'Format of validation report (default: detailed)'
+              }
+            },
+            required: ['primaryFile', 'referenceFiles']
+          }
+        },
+
         // Bulk Operations Tools
         {
           name: 'bulk_aggregate_multi_files',
@@ -794,6 +850,10 @@ class ExcelCSVServer {
             return await this.getAIProviderStatus(args);
           case 'smart_data_analysis':
             return await this.smartDataAnalysis(args);
+
+          // Data Validation Tools
+          case 'validate_data_consistency':
+            return await this.validateDataConsistency(args);
 
           // Bulk Operations Tools
           case 'bulk_aggregate_multi_files':
@@ -2121,6 +2181,53 @@ class ExcelCSVServer {
               success: false,
               error: error instanceof Error ? error.message : 'Unknown error',
               operation: 'bulk_filter_multi_files'
+            }, null, 2),
+          },
+        ],
+      };
+    }
+  }
+
+  // Data Validation Methods
+  private async validateDataConsistency(args: any) {
+    try {
+      const result = await this.validationEngine.validateDataConsistency(
+        args.primaryFile,
+        args.referenceFiles,
+        {
+          validationRules: args.validationRules,
+          keyColumns: args.keyColumns,
+          sheet: args.sheet,
+          autoDetectRelationships: args.autoDetectRelationships,
+          tolerance: args.tolerance
+        }
+      );
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: result.success,
+              validation: {
+                summary: result.summary,
+                issues: result.issues,
+                recommendations: result.recommendations
+              },
+              report: result.detailedReport
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              operation: 'validate_data_consistency'
             }, null, 2),
           },
         ],

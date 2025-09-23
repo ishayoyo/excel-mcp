@@ -27,6 +27,7 @@ This server acts as a bridge between Claude and your data files, providing:
 - **Formula evaluation** with dependency tracking
 - **Pivot tables** and aggregation
 - **Cross-file referential integrity** validation
+- **Excel styling and formatting** with auto-fitting columns and cell formatting
 
 ### 🏢 CFO-Level Financial Analysis
 
@@ -116,6 +117,11 @@ Ask questions in natural language:
 ### AI Features
 - `smart_data_analysis` - AI-powered analysis suggestions
 - `ai_provider_status` - Check AI provider availability
+
+### Styling & Formatting
+- `format_cells` - Apply fonts, colors, borders, alignment to Excel cells
+- `auto_fit_columns` - Automatically adjust column widths to fit content
+- `write_multi_sheet` - Create complex Excel files with formulas and formatting
 
 ### Validation & Export
 - `validate_data_consistency` - Cross-file data integrity checks

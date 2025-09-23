@@ -661,6 +661,123 @@ class ExcelCSVServer {
             required: ['analysisType', 'sourceFile', 'outputFile', 'analysisParams'],
           },
         },
+        {
+          name: 'format_cells',
+          description: 'Apply formatting to Excel cells (fonts, colors, borders, alignment)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePath: {
+                type: 'string',
+                description: 'Path to the Excel file (.xlsx or .xls)',
+              },
+              range: {
+                type: 'string',
+                description: 'Cell range in A1 notation (e.g., "A1", "A1:C5", "B2:D10")',
+              },
+              styling: {
+                type: 'object',
+                description: 'Formatting options to apply',
+                properties: {
+                  font: {
+                    type: 'object',
+                    description: 'Font styling options',
+                    properties: {
+                      bold: { type: 'boolean', description: 'Make text bold' },
+                      italic: { type: 'boolean', description: 'Make text italic' },
+                      underline: { type: 'boolean', description: 'Underline text' },
+                      size: { type: 'number', description: 'Font size (e.g., 12, 14, 16)' },
+                      color: { type: 'string', description: 'Font color in ARGB format (e.g., "FFFF0000" for red)' },
+                      name: { type: 'string', description: 'Font name (e.g., "Arial", "Times New Roman")' }
+                    }
+                  },
+                  fill: {
+                    type: 'object',
+                    description: 'Background fill options',
+                    properties: {
+                      color: { type: 'string', description: 'Background color in ARGB format (e.g., "FFFFFF00" for yellow)' },
+                      pattern: { type: 'string', description: 'Fill pattern (default: "solid")' }
+                    }
+                  },
+                  border: {
+                    type: 'object',
+                    description: 'Border styling options',
+                    properties: {
+                      style: { type: 'string', description: 'Border style: thin, medium, thick, dotted, dashed' },
+                      color: { type: 'string', description: 'Border color in ARGB format (e.g., "FF000000" for black)' },
+                      top: { type: 'boolean', description: 'Apply border to top (default: true)' },
+                      bottom: { type: 'boolean', description: 'Apply border to bottom (default: true)' },
+                      left: { type: 'boolean', description: 'Apply border to left (default: true)' },
+                      right: { type: 'boolean', description: 'Apply border to right (default: true)' }
+                    }
+                  },
+                  alignment: {
+                    type: 'object',
+                    description: 'Text alignment options',
+                    properties: {
+                      horizontal: { type: 'string', description: 'Horizontal alignment: left, center, right, justify' },
+                      vertical: { type: 'string', description: 'Vertical alignment: top, middle, bottom' },
+                      wrapText: { type: 'boolean', description: 'Wrap text within cell' },
+                      textRotation: { type: 'number', description: 'Text rotation angle in degrees' }
+                    }
+                  },
+                  numberFormat: {
+                    type: 'string',
+                    description: 'Number format (e.g., "$#,##0.00", "0.00%", "mm/dd/yyyy")'
+                  }
+                }
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name (optional, defaults to first sheet)',
+              },
+            },
+            required: ['filePath', 'range', 'styling'],
+          },
+        },
+        {
+          name: 'auto_fit_columns',
+          description: 'Automatically adjust column widths to fit content in Excel files',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePath: {
+                type: 'string',
+                description: 'Path to the Excel file (.xlsx or .xls)',
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name (optional, defaults to all sheets)',
+              },
+              columns: {
+                type: 'array',
+                description: 'Specific columns to auto-fit (optional, defaults to all columns). Can be column letters (e.g., ["A", "B"]) or numbers (e.g., [1, 2])',
+                items: {
+                  oneOf: [
+                    { type: 'string', description: 'Column letter (e.g., "A", "B", "C")' },
+                    { type: 'number', description: 'Column number (1-based, e.g., 1, 2, 3)' }
+                  ]
+                }
+              },
+              minWidth: {
+                type: 'number',
+                description: 'Minimum column width (default: 10)',
+                default: 10
+              },
+              maxWidth: {
+                type: 'number',
+                description: 'Maximum column width (default: 60)',
+                default: 60
+              },
+              padding: {
+                type: 'number',
+                description: 'Extra padding to add to calculated width (default: 2)',
+                default: 2
+              }
+            },
+            required: ['filePath'],
+          },
+        },
 
         // AI-Powered Tools
         {
@@ -956,6 +1073,10 @@ class ExcelCSVServer {
             return await this.fileOpsHandler.writeMultiSheet(toolArgs);
           case 'export_analysis':
             return await this.fileOpsHandler.exportAnalysis(toolArgs);
+          case 'format_cells':
+            return await this.fileOpsHandler.formatCells(toolArgs);
+          case 'auto_fit_columns':
+            return await this.fileOpsHandler.autoFitColumns(toolArgs);
 
           // AI-Powered Tools
           case 'evaluate_formula':

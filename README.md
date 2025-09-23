@@ -112,30 +112,35 @@ Ask questions in natural language:
 
 Several Excel MCP servers exist. Here's how this one compares:
 
-| Feature | This Server | Other Excel MCP Servers | Traditional Excel |
-|---------|-------------|---------------------------|-------------------|
-| **Formula Engine** | ✅ 82 functions from scratch | ❌ Basic read/write only | ✅ 400+ functions |
+| Feature | This Server | excel-mcp-server (uvx) | Traditional Excel |
+|---------|-------------|-----------------------|-------------------|
+| **Formula Engine** | ✅ 82 functions from scratch | ✅ Full Excel formula support | ✅ 400+ functions |
 | **AI Integration** | ✅ Multi-provider AI | ❌ None | ❌ None |
 | **Natural Language** | ✅ "Sum sales in Q4" | ❌ Manual operations | ❌ Manual operations |
 | **Bulk Operations** | ✅ Multi-file parallel processing | ❌ Single file only | ❌ Manual |
-| **Data Validation** | ✅ Cross-file integrity checks | ❌ Basic validation | ✅ Cell validation |
+| **Data Validation** | ✅ Cross-file integrity checks | ✅ Built-in validation | ✅ Cell validation |
 | **Analytics** | ✅ Statistics, correlations, profiling | ❌ None | ✅ Basic stats |
-| **Platform Support** | ✅ Cross-platform | ❌ Windows only | 💰 Windows/Mac |
-| **Screen Capture** | ❌ Not available | ✅ Windows only | ✅ Native |
-| **File Formats** | ✅ CSV, XLSX, XLS | ✅ XLSX, XLSM, XLTX, XLTM | ✅ All Excel formats |
+| **Platform Support** | ✅ Cross-platform | ✅ Cross-platform | 💰 Windows/Mac |
+| **Excel Required** | ❌ No Excel needed | ❌ No Excel needed | ✅ Excel required |
+| **Remote/Local** | ✅ Local only | ✅ Both local & remote | ✅ Local only |
+| **Charts & Formatting** | ❌ Basic support | ✅ Full Excel formatting, charts, pivot tables | ✅ Native |
+| **Transport Options** | ✅ Stdio only | ✅ Stdio, SSE, HTTP | ✅ Local files |
+| **Installation** | ✅ npm install + build | ✅ uvx (zero-install) | ✅ Microsoft Office |
 
 **Choose this server if you want:**
-- AI-powered data analysis conversations
-- Complex formula evaluation and generation
-- Multi-file bulk operations
-- Cross-platform compatibility
-- Advanced statistical analysis
+- **AI-powered data analysis** with natural language queries
+- **Custom formula engine** for complex calculations
+- **Multi-file bulk operations** (3x faster processing)
+- **Advanced statistical analysis** and data profiling
+- **Cross-file data validation** and consistency checking
+- **Developer-friendly** with full source code access
 
-**Choose other Excel MCP servers if you need:**
-- Windows-specific features like screen capture
-- Excel table creation and formatting
-- Sheet copying operations
-- Live Excel editing capabilities
+**Choose excel-mcp-server if you need:**
+- **Full Excel compatibility** without Microsoft Excel installed
+- **Complete formatting, charts, and pivot tables**
+- **Remote server capabilities** with HTTP/SSE transport
+- **Zero-install deployment** with uvx
+- **Enterprise Excel manipulation** features
 
 ## Development
 

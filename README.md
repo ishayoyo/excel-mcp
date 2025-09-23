@@ -63,6 +63,41 @@ npm install -g .
 # Args: -y excel-csv-mcp
 ```
 
+## Cursor Claude Desktop Setup
+
+### Option 1: Direct MCP Configuration
+Edit your Cursor MCP configuration file (`%APPDATA%\Cursor\mcp.json` on Windows, `~/Library/Application Support/Cursor/mcp.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "excel-csv": {
+      "command": "node",
+      "args": ["C:/path/to/excel-mcp/dist/index.js"]
+    }
+  }
+}
+```
+
+Replace `C:/path/to/excel-mcp/dist/index.js` with the actual path to your built `dist/index.js` file.
+
+### Option 2: Using npx (Recommended)
+```json
+{
+  "mcpServers": {
+    "excel-csv": {
+      "command": "npx",
+      "args": ["-y", "excel-csv-mcp"]
+    }
+  }
+}
+```
+
+This requires a global npm install:
+```bash
+npm install -g .
+```
+
 ## AI Providers
 
 Create a `.env` file with your API keys:

@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as csv from 'csv-parse/sync';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { CellAddress } from '../types/shared';
 
 export function parseA1Notation(a1: string): CellAddress {
@@ -87,10 +87,24 @@ export async function readFileContentWithWarnings(filePath: string, sheet?: stri
       throw new Error(`Failed to parse CSV file: ${parseError instanceof Error ? parseError.message : 'Unknown parsing error'}`);
     }
   } else if (ext === '.xlsx' || ext === '.xls') {
-    const workbook = XLSX.readFile(absolutePath);
-    const sheetName = sheet || workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(absolutePath);
+    const sheetName = sheet || workbook.worksheets[0]?.name;
+    const worksheet = workbook.getWorksheet(sheetName);
+
+    if (!worksheet) {
+      throw new Error(`Sheet "${sheetName}" not found in workbook`);
+    }
+
+    const data: any[][] = [];
+    worksheet.eachRow((row, rowNumber) => {
+      const rowData: any[] = [];
+      row.eachCell((cell, colNumber) => {
+        rowData[colNumber - 1] = cell.value || '';
+      });
+      data.push(rowData);
+    });
+
     return { data, warnings: warnings.length > 0 ? warnings : undefined };
   } else {
     throw new Error('Unsupported file format. Please use .csv, .xlsx, or .xls files.');

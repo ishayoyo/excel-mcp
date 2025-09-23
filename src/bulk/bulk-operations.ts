@@ -6,7 +6,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as csv from 'csv-parse/sync';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 export interface BulkAggregateArgs {
   filePaths: string[];
@@ -202,10 +202,25 @@ export class BulkOperations {
         relax_column_count: true,
       });
     } else if (ext === '.xlsx' || ext === '.xls') {
-      const workbook = XLSX.readFile(absolutePath);
-      const sheetName = sheet || workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      return XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(absolutePath);
+      const sheetName = sheet || workbook.worksheets[0]?.name;
+      const worksheet = workbook.getWorksheet(sheetName);
+
+      if (!worksheet) {
+        throw new Error(`Sheet "${sheetName}" not found in workbook`);
+      }
+
+      const data: any[][] = [];
+      worksheet.eachRow((row, rowNumber) => {
+        const rowData: any[] = [];
+        row.eachCell((cell, colNumber) => {
+          rowData[colNumber - 1] = cell.value || '';
+        });
+        data.push(rowData);
+      });
+
+      return data;
     } else {
       throw new Error('Unsupported file format. Please use .csv, .xlsx, or .xls files.');
     }
@@ -380,10 +395,12 @@ export class BulkOperations {
       const csvContent = csvStringify.stringify(allData);
       await fs.writeFile(outputPath, csvContent, 'utf-8');
     } else if (ext === '.xlsx' || ext === '.xls') {
-      const workbook = XLSX.utils.book_new();
-      const worksheet = XLSX.utils.aoa_to_sheet(allData);
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Filtered_Results');
-      XLSX.writeFile(workbook, outputPath);
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Filtered_Results');
+      allData.forEach((row: any[]) => {
+        worksheet.addRow(row);
+      });
+      await workbook.xlsx.writeFile(outputPath);
     } else {
       throw new Error('Unsupported output format. Use .csv, .xlsx, or .xls');
     }

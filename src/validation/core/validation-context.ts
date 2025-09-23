@@ -5,7 +5,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as csv from 'csv-parse/sync';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { FileValidationContext, ValidationContext, DetectedRelationship, ColumnStats } from './validation-result';
 
 export class ValidationContextBuilder {
@@ -72,10 +72,25 @@ export class ValidationContextBuilder {
         relax_column_count: true,
       });
     } else if (ext === '.xlsx' || ext === '.xls') {
-      const workbook = XLSX.readFile(absolutePath);
-      const sheetName = sheet || workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      return XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(absolutePath);
+      const sheetName = sheet || workbook.worksheets[0]?.name;
+      const worksheet = workbook.getWorksheet(sheetName);
+
+      if (!worksheet) {
+        throw new Error(`Sheet "${sheetName}" not found in workbook`);
+      }
+
+      const data: any[][] = [];
+      worksheet.eachRow((row, rowNumber) => {
+        const rowData: any[] = [];
+        row.eachCell((cell, colNumber) => {
+          rowData[colNumber - 1] = cell.value || '';
+        });
+        data.push(rowData);
+      });
+
+      return data;
     } else {
       throw new Error('Unsupported file format. Please use .csv, .xlsx, or .xls files.');
     }

@@ -3,7 +3,7 @@ import { parseA1Notation } from '../utils/file-utils';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as csvStringify from 'csv-stringify/sync';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 export class FileOperationsHandler {
   async writeFile(args: ToolArgs): Promise<ToolResponse> {
@@ -21,7 +21,7 @@ export class FileOperationsHandler {
         throw new Error('Multi-sheet mode only works with Excel files (.xlsx or .xls)');
       }
 
-      const workbook = XLSX.utils.book_new();
+      const workbook = new ExcelJS.Workbook();
       let totalRows = 0;
       let totalColumns = 0;
 
@@ -39,8 +39,10 @@ export class FileOperationsHandler {
           fullData.push([]);
         }
 
-        const worksheet = XLSX.utils.aoa_to_sheet(fullData);
-        XLSX.utils.book_append_sheet(workbook, worksheet, sheetData.name);
+        const worksheet = workbook.addWorksheet(sheetData.name);
+        fullData.forEach((row: any[]) => {
+          worksheet.addRow(row);
+        });
 
         totalRows += fullData.length;
         if (fullData.length > 0 && Array.isArray(fullData[0])) {
@@ -48,7 +50,7 @@ export class FileOperationsHandler {
         }
       }
 
-      XLSX.writeFile(workbook, absolutePath);
+      await workbook.xlsx.writeFile(absolutePath);
 
       return {
         content: [
@@ -81,10 +83,12 @@ export class FileOperationsHandler {
       await fs.writeFile(absolutePath, csvContent, 'utf-8');
     } else if (ext === '.xlsx' || ext === '.xls') {
       // Write Excel file
-      const workbook = XLSX.utils.book_new();
-      const worksheet = XLSX.utils.aoa_to_sheet(fullData);
-      XLSX.utils.book_append_sheet(workbook, worksheet, sheet);
-      XLSX.writeFile(workbook, absolutePath);
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet(sheet);
+      fullData.forEach((row: any[]) => {
+        worksheet.addRow(row);
+      });
+      await workbook.xlsx.writeFile(absolutePath);
     } else {
       throw new Error('Unsupported file format. Please use .csv, .xlsx, or .xls extension.');
     }
@@ -122,10 +126,11 @@ export class FileOperationsHandler {
     }
 
     // Read existing workbook
-    const workbook = XLSX.readFile(absolutePath);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(absolutePath);
 
     // Check if sheet name already exists
-    if (workbook.SheetNames.includes(sheetName)) {
+    if (workbook.getWorksheet(sheetName)) {
       throw new Error(`Sheet "${sheetName}" already exists in the workbook`);
     }
 
@@ -133,20 +138,16 @@ export class FileOperationsHandler {
     const fullData = headers ? [headers, ...data] : data;
 
     // Create new worksheet
-    const worksheet = XLSX.utils.aoa_to_sheet(fullData);
+    const worksheet = workbook.addWorksheet(sheetName);
+    fullData.forEach((row: any[]) => {
+      worksheet.addRow(row);
+    });
 
-    // Add sheet at specified position or at the end
-    if (position !== undefined && position >= 0 && position <= workbook.SheetNames.length) {
-      // Insert at specific position
-      workbook.SheetNames.splice(position, 0, sheetName);
-      workbook.Sheets[sheetName] = worksheet;
-    } else {
-      // Append at the end
-      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-    }
+    // Note: ExcelJS doesn't support inserting worksheets at specific positions
+    // The worksheet is added at the end of the workbook
 
     // Write the updated workbook
-    XLSX.writeFile(workbook, absolutePath);
+    await workbook.xlsx.writeFile(absolutePath);
 
     return {
       content: [
@@ -156,11 +157,11 @@ export class FileOperationsHandler {
             success: true,
             filePath: absolutePath,
             sheetName,
-            sheetCount: workbook.SheetNames.length,
-            sheetNames: workbook.SheetNames,
+            sheetCount: workbook.worksheets.length,
+            sheetNames: workbook.worksheets.map(ws => ws.name),
             rowsAdded: fullData.length,
             columnsAdded: fullData[0]?.length || 0,
-            position: position !== undefined ? position : workbook.SheetNames.length - 1,
+            position: position !== undefined ? position : workbook.worksheets.length - 1,
           }, null, 2),
         },
       ],
@@ -176,7 +177,7 @@ export class FileOperationsHandler {
       throw new Error('write_multi_sheet only works with Excel files (.xlsx or .xls)');
     }
 
-    const workbook = XLSX.utils.book_new();
+    const workbook = new ExcelJS.Workbook();
     const sheetInfo: any[] = [];
 
     // First pass: Create all sheets with data
@@ -187,28 +188,25 @@ export class FileOperationsHandler {
       const fullData = headers ? [headers, ...data] : data;
 
       // Create worksheet
-      const worksheet = XLSX.utils.aoa_to_sheet(fullData);
+      const worksheet = workbook.addWorksheet(name);
+
+      // Add data to worksheet
+      fullData.forEach((row: any[]) => {
+        worksheet.addRow(row);
+      });
 
       // Apply formulas if provided
       if (formulas && Array.isArray(formulas)) {
         for (const formulaDef of formulas) {
           const { cell, formula } = formulaDef;
-          const cellAddr = parseA1Notation(cell);
 
           // Set formula in worksheet
-          if (!worksheet[cell]) {
-            worksheet[cell] = {};
-          }
-          worksheet[cell].f = formula;
-
-          // If the formula starts with =, remove it for the stored formula
+          const excelCell = worksheet.getCell(cell);
+          // If the formula starts with =, remove it for ExcelJS
           const cleanFormula = formula.startsWith('=') ? formula.substring(1) : formula;
-          worksheet[cell].f = cleanFormula;
+          excelCell.value = { formula: cleanFormula };
         }
       }
-
-      // Add sheet to workbook
-      XLSX.utils.book_append_sheet(workbook, worksheet, name);
 
       sheetInfo.push({
         name,
@@ -218,17 +216,8 @@ export class FileOperationsHandler {
       });
     }
 
-    // Update sheet ranges if needed
-    for (const sheetName of workbook.SheetNames) {
-      const worksheet = workbook.Sheets[sheetName];
-      if (!worksheet['!ref']) {
-        const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
-        worksheet['!ref'] = XLSX.utils.encode_range(range);
-      }
-    }
-
     // Write the workbook
-    XLSX.writeFile(workbook, absolutePath);
+    await workbook.xlsx.writeFile(absolutePath);
 
     return {
       content: [

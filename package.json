@@ -52,6 +52,7 @@
     "csv-parse": "^5.6.0",
     "csv-stringify": "^6.5.2",
     "dotenv": "^16.5.0",
+    "hyperformula": "^3.0.1",
     "papaparse": "^5.5.3",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",

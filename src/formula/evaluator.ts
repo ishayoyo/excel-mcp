@@ -4,6 +4,7 @@
 
 import { ASTNode } from './parser';
 import { ExcelFunctions } from './functions';
+import { hyperFormulaEngine } from './hyperformula-engine';
 
 export interface CellValue {
   value: any;
@@ -141,20 +142,68 @@ export class FormulaEvaluator {
 
   private evaluateFunction(node: ASTNode, context: WorkbookContext): any {
     const funcName = node.value.toUpperCase(); // Excel functions are case-insensitive
+
+    // Try HyperFormula first (has 400+ functions vs our 82)
+    if (hyperFormulaEngine.isFunctionSupported(funcName)) {
+      try {
+        // Convert AST back to formula string for HyperFormula
+        const formulaString = this.functionNodeToFormula(node);
+        return hyperFormulaEngine.evaluateFormula(formulaString, context);
+      } catch (error) {
+        // Fall back to custom implementation if HyperFormula fails
+        console.warn(`HyperFormula failed for ${funcName}, falling back to custom implementation:`, error);
+      }
+    }
+
+    // Fall back to custom implementation
     const args = node.children?.map(child => this.evaluateNode(child, context)) || [];
-    
-    // Check if function exists
+
+    // Check if function exists in custom implementation
     const func = (this.functions as any)[funcName];
     if (!func || typeof func !== 'function') {
       throw new FormulaError('#NAME?');
     }
-    
+
     // Flatten arrays for functions that expect flattened arguments
-    const flattenedArgs = this.shouldFlattenArgs(funcName) ? 
+    const flattenedArgs = this.shouldFlattenArgs(funcName) ?
       args.map(arg => Array.isArray(arg) ? this.flattenArray(arg) : arg) : args;
-    
+
     // Call the function
     return func.apply(this.functions, flattenedArgs);
+  }
+
+  /**
+   * Convert function AST node back to formula string for HyperFormula
+   */
+  private functionNodeToFormula(node: ASTNode): string {
+    const funcName = node.value.toUpperCase();
+    const args = node.children?.map(child => this.nodeToFormulaString(child)).join(',') || '';
+    return `${funcName}(${args})`;
+  }
+
+  /**
+   * Convert AST node to formula string (for HyperFormula compatibility)
+   */
+  private nodeToFormulaString(node: ASTNode): string {
+    switch (node.type) {
+      case 'Number':
+        return node.value.toString();
+      case 'String':
+        return `"${node.value}"`;
+      case 'Boolean':
+        return node.value.toString().toUpperCase();
+      case 'CellReference':
+      case 'RangeReference':
+        return node.value;
+      case 'Function':
+        return this.functionNodeToFormula(node);
+      case 'BinaryOperation':
+        const left = this.nodeToFormulaString(node.children![0]);
+        const right = this.nodeToFormulaString(node.children![1]);
+        return `(${left}${node.value}${right})`;
+      default:
+        return node.value?.toString() || '#UNSUPPORTED!';
+    }
   }
 
   private evaluateBinaryOperation(node: ASTNode, context: WorkbookContext): any {

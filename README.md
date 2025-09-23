@@ -170,14 +170,6 @@ Ask questions in natural language:
 
 **Built for CFOs, financial analysts, and executives who need:** 💰 DCF valuations and investment analysis 📊 Financial ratio analysis with benchmarks 🎯 Scenario planning and risk modeling 💼 Budget variance tracking and reporting 🤖 AI-powered financial insights at conversational speed
 
-## Development
-
-```bash
-npm run dev    # Development server with hot reload
-npm run build  # Build for production
-npm run lint   # Run linter
-```
-
 ## License
 
 MIT

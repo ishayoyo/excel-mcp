@@ -14,6 +14,7 @@ import { DataOperationsHandler } from './handlers/data-operations';
 import { AnalyticsHandler } from './handlers/analytics';
 import { FileOperationsHandler } from './handlers/file-operations';
 import { AIOperationsHandler } from './handlers/ai-operations';
+import { FinancialAnalysisHandler } from './handlers/financial-analysis';
 
 // Other imports for existing functionality
 import { BulkOperations } from './bulk/bulk-operations';
@@ -27,6 +28,7 @@ class ExcelCSVServer {
   private analyticsHandler: AnalyticsHandler;
   private fileOpsHandler: FileOperationsHandler;
   private aiOpsHandler: AIOperationsHandler;
+  private financialHandler: FinancialAnalysisHandler;
 
   // Legacy instances (to be refactored later)
   private bulkOperations: BulkOperations;
@@ -50,6 +52,7 @@ class ExcelCSVServer {
     this.analyticsHandler = new AnalyticsHandler();
     this.fileOpsHandler = new FileOperationsHandler();
     this.aiOpsHandler = new AIOperationsHandler();
+    this.financialHandler = new FinancialAnalysisHandler();
 
     // Initialize legacy components
     this.bulkOperations = new BulkOperations();
@@ -328,6 +331,146 @@ class ExcelCSVServer {
             },
             required: ['filePath', 'groupBy', 'aggregateColumn', 'operation'],
           },
+        },
+
+        // Financial Analysis Tools (CFO-Level)
+        {
+          name: 'dcf_analysis',
+          description: 'Perform Discounted Cash Flow (DCF) valuation analysis for investment evaluation',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePath: {
+                type: 'string',
+                description: 'Path to the CSV or Excel file with cash flow data'
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name for Excel files (optional)'
+              },
+              assumptions: {
+                type: 'object',
+                description: 'DCF assumptions (optional)',
+                properties: {
+                  initialInvestment: { type: 'number', description: 'Initial investment amount (negative)' },
+                  growthRate: { type: 'number', description: 'Annual growth rate (0.15 = 15%)' },
+                  discountRate: { type: 'number', description: 'Discount rate/WACC (0.12 = 12%)' },
+                  terminalMultiple: { type: 'number', description: 'Terminal value multiple (8x)' },
+                  projectionYears: { type: 'number', description: 'Number of projection years' }
+                }
+              }
+            },
+            required: ['filePath']
+          }
+        },
+        {
+          name: 'budget_variance_analysis',
+          description: 'Analyze budget vs actual performance with variance calculations',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePath: {
+                type: 'string',
+                description: 'Path to the CSV or Excel file with budget and actual data'
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name for Excel files (optional)'
+              },
+              actualColumn: {
+                type: 'string',
+                description: 'Column name or index containing actual values'
+              },
+              budgetColumn: {
+                type: 'string',
+                description: 'Column name or index containing budget values'
+              }
+            },
+            required: ['filePath', 'actualColumn', 'budgetColumn']
+          }
+        },
+        {
+          name: 'ratio_analysis',
+          description: 'Perform comprehensive financial ratio analysis with industry benchmarks',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePath: {
+                type: 'string',
+                description: 'Path to the CSV or Excel file with financial statement data'
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name for Excel files (optional)'
+              }
+            },
+            required: ['filePath']
+          }
+        },
+        {
+          name: 'scenario_modeling',
+          description: 'Perform what-if scenario analysis with multiple assumptions',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePath: {
+                type: 'string',
+                description: 'Path to the CSV or Excel file with base data'
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name for Excel files (optional)'
+              },
+              scenarios: {
+                type: 'array',
+                description: 'Array of scenario definitions',
+                items: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string', description: 'Scenario name' },
+                    assumptions: {
+                      type: 'object',
+                      description: 'Key-value pairs of assumption changes',
+                      additionalProperties: { type: 'number' }
+                    }
+                  },
+                  required: ['name', 'assumptions']
+                }
+              }
+            },
+            required: ['filePath', 'scenarios']
+          }
+        },
+        {
+          name: 'trend_analysis',
+          description: 'Analyze time series trends, growth rates, seasonality, and forecasting for sales and performance data',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePath: {
+                type: 'string',
+                description: 'Path to the CSV or Excel file with time series data'
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name for Excel files (optional)'
+              },
+              dateColumn: {
+                type: 'string',
+                description: 'Column name or index containing date/time values'
+              },
+              valueColumn: {
+                type: 'string',
+                description: 'Column name or index containing numeric values to analyze'
+              },
+              periods: {
+                type: 'number',
+                description: 'Number of future periods to forecast (default: 12)',
+                default: 12
+              }
+            },
+            required: ['filePath', 'dateColumn', 'valueColumn']
+          }
         },
 
         // File Operations Tools
@@ -791,6 +934,18 @@ class ExcelCSVServer {
             return await this.analyticsHandler.dataProfile(toolArgs);
           case 'pivot_table':
             return await this.analyticsHandler.pivotTable(toolArgs);
+
+          // Financial Analysis (CFO-Level)
+          case 'dcf_analysis':
+            return await this.financialHandler.dcfAnalysis(toolArgs);
+          case 'budget_variance_analysis':
+            return await this.financialHandler.budgetVarianceAnalysis(toolArgs);
+          case 'ratio_analysis':
+            return await this.financialHandler.ratioAnalysis(toolArgs);
+          case 'scenario_modeling':
+            return await this.financialHandler.scenarioModeling(toolArgs);
+          case 'trend_analysis':
+            return await this.financialHandler.trendAnalysis(toolArgs);
 
           // File Operations
           case 'write_file':

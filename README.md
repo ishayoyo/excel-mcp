@@ -28,6 +28,15 @@ This server acts as a bridge between Claude and your data files, providing:
 - **Pivot tables** and aggregation
 - **Cross-file referential integrity** validation
 
+### 🏢 CFO-Level Financial Analysis
+
+- **DCF Valuation Models** - Complete discounted cash flow analysis with NPV, IRR, terminal value
+- **Financial Ratio Analysis** - Comprehensive ratios with industry benchmarks (liquidity, profitability, leverage)
+- **Budget Variance Analysis** - Automated budget vs actual comparisons with variance reporting
+- **Scenario Modeling** - What-if analysis with multiple assumption scenarios
+- **Financial Functions** - NPV, IRR, PMT, FV, PV, RATE, depreciation schedules, and more
+- **Industry Benchmarking** - Automatic comparison against industry standards
+
 ## Installation
 
 ```bash
@@ -151,9 +160,9 @@ Ask questions in natural language:
 
 **Traditional Excel tools** focus on file manipulation - reading, writing, formatting. They treat spreadsheets as static documents.
 
-**This server** treats your data as a dynamic knowledge base you can have conversations with. It's not about pretty formatting or charts - it's about extracting insights, finding patterns, and answering complex questions across multiple data sources.
+**This server** treats your data as a dynamic knowledge base you can have conversations with. It's not about pretty formatting - it's about CFO-level financial modeling, strategic analysis, and executive decision-making powered by AI.
 
-**Built for data scientists, analysts, and anyone who wants to:** 🤔 Ask questions instead of writing formulas 🔍 Analyze multiple files simultaneously 📈 Get AI-powered insights ⚡ Process data 3x faster than manual methods
+**Built for CFOs, financial analysts, and executives who need:** 💰 DCF valuations and investment analysis 📊 Financial ratio analysis with benchmarks 🎯 Scenario planning and risk modeling 💼 Budget variance tracking and reporting 🤖 AI-powered financial insights at conversational speed
 
 ## Development
 

@@ -21,6 +21,7 @@ This server acts as a bridge between Claude and your data files, providing:
 - **394 Excel functions** via HyperFormula (battle-tested library)
 - **AI-powered natural language** data queries
 - **Multi-provider AI support** (Anthropic, OpenAI, DeepSeek, Gemini)
+- **Large file support** with intelligent chunking for files >100MB
 - **Bulk operations** across multiple files (3x faster)
 - **Smart data validation** and consistency checking
 - **Advanced statistical analysis** and data profiling
@@ -125,11 +126,15 @@ Ask questions in natural language:
 - "Generate a formula to calculate average of last 30 days"
 - "Validate data consistency between sales.xlsx and branches.xlsx"
 - "Create a pivot table by department and export to report.xlsx"
+- "Analyze this 500MB dataset in chunks to avoid memory issues"
+- "Get file info and optimal chunk size for large_dataset.csv"
 
 ## Available Tools
 
 ### Core Operations
-- `read_file` - Read CSV/Excel files
+- `read_file` - Read CSV/Excel files (supports offset/limit for large files)
+- `read_file_chunked` - Stream large files in manageable chunks to avoid memory limits
+- `get_file_info` - Analyze file size and get chunking recommendations for large datasets
 - `get_cell` / `get_range` - Access specific cells or ranges
 - `search` / `filter_rows` - Find and filter data
 - `aggregate` - SUM, AVG, COUNT, MIN, MAX operations
@@ -196,6 +201,13 @@ Ask questions in natural language:
 - "Show me the top 10 products by revenue" → AI understands intent and executes
 - "Calculate average order value for customers from California" → Generates optimal query
 - "Create a summary of sales trends by month" → Suggests best analysis approach
+
+📈 **Large File Processing (NEW)**
+- **Intelligent Chunking**: Automatically handles files >100MB without memory errors
+- **Smart Recommendations**: `get_file_info` analyzes files and suggests optimal chunk sizes
+- **Seamless Navigation**: Read any chunk with proper headers and metadata
+- **Memory Efficient**: Constant memory usage regardless of file size (tested up to 1M+ rows)
+- **Progress Tracking**: Chunk navigation with hasNext/hasPrevious indicators
 
 ## Why This Approach Matters
 

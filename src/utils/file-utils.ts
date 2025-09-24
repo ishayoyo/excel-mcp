@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as csv from 'csv-parse/sync';
 import ExcelJS from 'exceljs';
-import { CellAddress } from '../types/shared';
+import { CellAddress, FileInfo } from '../types/shared';
 
 export function parseA1Notation(a1: string): CellAddress {
   const match = a1.match(/^([A-Z]+)(\d+)$/);
@@ -139,4 +139,79 @@ export function detectDataTypes(data: any[][]): Record<string, 'number' | 'text'
   }
 
   return types;
+}
+
+// Chunked reading utilities
+export async function getFileInfo(filePath: string, sheet?: string): Promise<FileInfo> {
+  const absolutePath = path.resolve(filePath);
+  const stats = await fs.stat(absolutePath);
+  const ext = path.extname(filePath).toLowerCase();
+
+  // Get basic file info
+  let totalRows = 0;
+  let totalColumns = 0;
+  let sheets: string[] = [];
+
+  if (ext === '.csv') {
+    // For CSV, we need to read to count rows (but efficiently)
+    const content = await fs.readFile(absolutePath, 'utf-8');
+    const lines = content.split('\n').filter(line => line.trim() !== '');
+    totalRows = lines.length;
+
+    // Estimate columns from first line
+    if (lines.length > 0) {
+      const firstLine = csv.parse(lines[0])[0];
+      totalColumns = firstLine.length;
+    }
+  } else if (ext === '.xlsx' || ext === '.xls') {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(absolutePath);
+
+    sheets = workbook.worksheets.map(ws => ws.name);
+    const worksheet = workbook.getWorksheet(sheet || sheets[0]);
+
+    if (worksheet) {
+      totalRows = worksheet.rowCount;
+      totalColumns = worksheet.columnCount;
+    }
+  }
+
+  // Estimate token count (rough approximation)
+  const avgCellLength = 10; // characters
+  const estimatedTokens = Math.ceil((totalRows * totalColumns * avgCellLength) / 4); // ~4 chars per token
+
+  // Calculate recommended chunk size (target ~8000 tokens per chunk)
+  const targetTokens = 8000;
+  const recommendedChunkSize = Math.max(100, Math.floor(targetTokens / (totalColumns * avgCellLength / 4)));
+
+  return {
+    filePath: absolutePath,
+    fileSize: stats.size,
+    totalRows,
+    totalColumns,
+    estimatedTokens,
+    recommendedChunkSize: Math.min(recommendedChunkSize, 5000), // Cap at 5000 rows
+    sheets: sheets.length > 0 ? sheets : undefined
+  };
+}
+
+export function calculateOptimalChunkSize(totalRows: number, totalColumns: number, targetTokens: number = 8000): number {
+  const avgCellLength = 10;
+  const tokensPerRow = Math.ceil((totalColumns * avgCellLength) / 4);
+  const optimalRows = Math.floor(targetTokens / tokensPerRow);
+
+  return Math.max(100, Math.min(optimalRows, 5000)); // Between 100 and 5000 rows
+}
+
+export function validateChunkBoundaries(data: any[][], offset: number, limit: number): { validOffset: number; validLimit: number } {
+  const totalRows = data.length;
+
+  // Ensure offset is within bounds
+  const validOffset = Math.max(0, Math.min(offset, totalRows - 1));
+
+  // Ensure limit doesn't exceed remaining data
+  const remainingRows = totalRows - validOffset;
+  const validLimit = Math.min(limit, remainingRows);
+
+  return { validOffset, validLimit };
 }

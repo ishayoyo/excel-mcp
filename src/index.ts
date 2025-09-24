@@ -67,7 +67,7 @@ class ExcelCSVServer {
         // Basic Data Tools
         {
           name: 'read_file',
-          description: 'Read an entire CSV or Excel file',
+          description: 'Read an entire CSV or Excel file with optional chunking for large files',
           inputSchema: {
             type: 'object',
             properties: {
@@ -78,6 +78,14 @@ class ExcelCSVServer {
               sheet: {
                 type: 'string',
                 description: 'Sheet name for Excel files (optional, defaults to first sheet)',
+              },
+              offset: {
+                type: 'number',
+                description: 'Starting row index for chunked reading (0-based, optional)',
+              },
+              limit: {
+                type: 'number',
+                description: 'Maximum number of rows to return (optional, enables chunking)',
               },
             },
             required: ['filePath'],
@@ -231,6 +239,53 @@ class ExcelCSVServer {
               },
             },
             required: ['filePath', 'column', 'operation'],
+          },
+        },
+
+        // Chunked Reading Tools
+        {
+          name: 'read_file_chunked',
+          description: 'Read large files in manageable chunks to avoid token limits',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePath: {
+                type: 'string',
+                description: 'Path to the CSV or Excel file',
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name for Excel files (optional)',
+              },
+              chunkIndex: {
+                type: 'number',
+                description: 'Chunk index to read (0-based, defaults to 0)',
+                default: 0,
+              },
+              chunkSize: {
+                type: 'number',
+                description: 'Number of rows per chunk (optional, auto-calculated if not provided)',
+              },
+            },
+            required: ['filePath'],
+          },
+        },
+        {
+          name: 'get_file_info',
+          description: 'Analyze file size and get chunking recommendations',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePath: {
+                type: 'string',
+                description: 'Path to the CSV or Excel file',
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name for Excel files (optional)',
+              },
+            },
+            required: ['filePath'],
           },
         },
 
@@ -1041,6 +1096,12 @@ class ExcelCSVServer {
             return await this.dataOpsHandler.filterRows(toolArgs);
           case 'aggregate':
             return await this.dataOpsHandler.aggregate(toolArgs);
+
+          // Chunked Reading
+          case 'read_file_chunked':
+            return await this.dataOpsHandler.readFileChunked(toolArgs);
+          case 'get_file_info':
+            return await this.dataOpsHandler.getFileInfo(toolArgs);
 
           // Analytics
           case 'statistical_analysis':

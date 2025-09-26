@@ -2,7 +2,7 @@
 
 An MCP server that brings Excel/CSV data analysis capabilities to Claude, with a custom-built formula engine and AI-powered features.
 
-**What makes this different:** The world's first conversational data analysis MCP server powered by HyperFormula (394 Excel functions) + multi-provider AI. Ask questions in natural language and get instant insights from your Excel/CSV files. Built for analysts who want AI-powered conversations with their data, not just spreadsheet manipulation.
+**What makes this different:** The world's first conversational data analysis MCP server powered by HyperFormula (395 Excel functions) + multi-provider AI. Ask questions in natural language and get instant insights from your Excel/CSV files. Built for analysts who want AI-powered conversations with their data, not just spreadsheet manipulation.
 
 ## How It Works
 
@@ -18,7 +18,7 @@ This server acts as a bridge between Claude and your data files, providing:
 
 ## Features
 
-- **394 Excel functions** via HyperFormula (battle-tested library)
+- **395 Excel functions** via HyperFormula (battle-tested library)
 - **AI-powered natural language** data queries
 - **Multi-provider AI support** (Anthropic, OpenAI, DeepSeek, Gemini)
 - **Large file support** with intelligent chunking for files >100MB
@@ -123,6 +123,9 @@ Ask questions in natural language:
 - "What's the total revenue in sales_data.csv?"
 - "Sum all sales where region is 'North'"
 - "Find duplicates in customer_data.xlsx"
+- "Clean messy customer data - fix phone numbers and names"
+- "Remove duplicate rows from my contact list"
+- "Help me VLOOKUP customer details between two files"
 - "Generate a formula to calculate average of last 30 days"
 - "Validate data consistency between sales.xlsx and branches.xlsx"
 - "Create a pivot table by department and export to report.xlsx"
@@ -138,6 +141,11 @@ Ask questions in natural language:
 - `get_cell` / `get_range` - Access specific cells or ranges
 - `search` / `filter_rows` - Find and filter data
 - `aggregate` - SUM, AVG, COUNT, MIN, MAX operations
+
+### Excel Workflow Tools (NEW)
+- `find_duplicates` - Smart duplicate detection and removal with multiple strategies
+- `data_cleaner` - Batch data cleaning operations (trim whitespace, fix phones, standardize names, etc.)
+- `vlookup_helper` - Intelligent VLOOKUP setup with fuzzy matching and error handling
 
 ### Bulk Operations
 - `bulk_aggregate_multi_files` - Aggregate across multiple files (3x faster)

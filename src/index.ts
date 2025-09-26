@@ -15,6 +15,7 @@ import { AnalyticsHandler } from './handlers/analytics';
 import { FileOperationsHandler } from './handlers/file-operations';
 import { AIOperationsHandler } from './handlers/ai-operations';
 import { FinancialAnalysisHandler } from './handlers/financial-analysis';
+import { ExcelWorkflowHandler } from './handlers/excel-workflow';
 
 // Other imports for existing functionality
 import { BulkOperations } from './bulk/bulk-operations';
@@ -29,6 +30,7 @@ class ExcelCSVServer {
   private fileOpsHandler: FileOperationsHandler;
   private aiOpsHandler: AIOperationsHandler;
   private financialHandler: FinancialAnalysisHandler;
+  private excelWorkflowHandler: ExcelWorkflowHandler;
 
   // Legacy instances (to be refactored later)
   private bulkOperations: BulkOperations;
@@ -53,6 +55,7 @@ class ExcelCSVServer {
     this.fileOpsHandler = new FileOperationsHandler();
     this.aiOpsHandler = new AIOperationsHandler();
     this.financialHandler = new FinancialAnalysisHandler();
+    this.excelWorkflowHandler = new ExcelWorkflowHandler();
 
     // Initialize legacy components
     this.bulkOperations = new BulkOperations();
@@ -1072,6 +1075,117 @@ class ExcelCSVServer {
             required: ['filePaths', 'filters', 'outputMode']
           }
         },
+
+        // Excel Workflow Tools
+        {
+          name: 'find_duplicates',
+          description: 'Find and manage duplicate rows in Excel/CSV files with multiple strategies',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePath: {
+                type: 'string',
+                description: 'Path to the CSV or Excel file'
+              },
+              columns: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Columns to check for duplicates (empty = all columns)'
+              },
+              action: {
+                type: 'string',
+                enum: ['highlight', 'remove', 'export_duplicates', 'report_only'],
+                description: 'What to do with duplicates (default: report_only)'
+              },
+              keepFirst: {
+                type: 'boolean',
+                description: 'Keep first occurrence when removing (default: true)'
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name for Excel files (optional)'
+              }
+            },
+            required: ['filePath']
+          }
+        },
+        {
+          name: 'data_cleaner',
+          description: 'Batch data cleaning operations with intelligent detection of common data quality issues',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filePath: {
+                type: 'string',
+                description: 'Path to the CSV or Excel file'
+              },
+              operations: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  enum: [
+                    'trim_whitespace', 'fix_dates', 'standardize_numbers',
+                    'remove_empty_rows', 'standardize_phone_formats', 'standardize_names',
+                    'remove_special_chars', 'fix_currency'
+                  ]
+                },
+                description: 'Array of cleaning operations to apply'
+              },
+              preview: {
+                type: 'boolean',
+                description: 'Show preview before applying changes (default: false)'
+              },
+              sheet: {
+                type: 'string',
+                description: 'Sheet name for Excel files (optional)'
+              }
+            },
+            required: ['filePath']
+          }
+        },
+        {
+          name: 'vlookup_helper',
+          description: 'Intelligent VLOOKUP setup and execution with error handling and fuzzy matching',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              sourceFile: {
+                type: 'string',
+                description: 'File with data that needs lookup values'
+              },
+              lookupFile: {
+                type: 'string',
+                description: 'File to lookup values from'
+              },
+              lookupColumn: {
+                type: 'string',
+                description: 'Column name or index to match on'
+              },
+              returnColumns: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Columns to return from lookup table (empty = all except lookup column)'
+              },
+              fuzzyMatch: {
+                type: 'boolean',
+                description: 'Enable fuzzy string matching for lookups (default: false)'
+              },
+              handleErrors: {
+                type: 'boolean',
+                description: 'Auto-handle #N/A errors with fallbacks (default: true)'
+              },
+              sourceSheet: {
+                type: 'string',
+                description: 'Sheet name for source Excel file (optional)'
+              },
+              lookupSheet: {
+                type: 'string',
+                description: 'Sheet name for lookup Excel file (optional)'
+              }
+            },
+            required: ['sourceFile', 'lookupFile', 'lookupColumn']
+          }
+        },
       ],
     }));
 
@@ -1150,6 +1264,14 @@ class ExcelCSVServer {
             return await this.aiOpsHandler.getAIProviderStatus(toolArgs);
           case 'smart_data_analysis':
             return await this.aiOpsHandler.smartDataAnalysis(toolArgs);
+
+          // Excel Workflow Tools
+          case 'find_duplicates':
+            return await this.excelWorkflowHandler.findDuplicates(toolArgs);
+          case 'data_cleaner':
+            return await this.excelWorkflowHandler.cleanData(toolArgs);
+          case 'vlookup_helper':
+            return await this.excelWorkflowHandler.vlookupHelper(toolArgs);
 
           // Legacy bulk operations (to be refactored)
           case 'bulk_aggregate_multi_files':

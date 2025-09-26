@@ -31,6 +31,7 @@ test-deepseek.ts.backup
 INSTALL.md
 CLAUDE.md
 OpenSpec.md
+openspec/
 openspec/AGENTS.md
 openspec/project.md
 openspec/changes/add-chunked-reading/proposal.md

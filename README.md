@@ -14,7 +14,8 @@ Then add to your MCP client:
 
 **Claude Code:**
 ```bash
-claude mcp add excel-csv stdio excel-csv-mcp-server
+claude mcp remove excel-csv  # if previously added
+claude mcp add excel-csv --transport stdio excel-csv-mcp-server
 ```
 
 **Claude Desktop / Cursor** — add to your MCP config (`claude_desktop_config.json` or Cursor's `mcp.json`):

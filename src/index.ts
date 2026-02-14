@@ -547,6 +547,7 @@ class ExcelCSVServer {
                 description: 'Array of arrays representing rows of data (single sheet mode)',
                 items: {
                   type: 'array',
+                  items: { type: 'string' },
                 },
               },
               headers: {
@@ -575,6 +576,7 @@ class ExcelCSVServer {
                       description: 'Array of arrays representing rows of data',
                       items: {
                         type: 'array',
+                        items: { type: 'string' },
                       },
                     },
                     headers: {
@@ -611,6 +613,7 @@ class ExcelCSVServer {
                 description: 'Array of arrays representing rows of data',
                 items: {
                   type: 'array',
+                  items: { type: 'string' },
                 },
               },
               headers: {
@@ -653,6 +656,7 @@ class ExcelCSVServer {
                       description: 'Array of arrays representing rows of data',
                       items: {
                         type: 'array',
+                        items: { type: 'string' },
                       },
                     },
                     headers: {

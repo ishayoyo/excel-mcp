@@ -1,5 +1,4 @@
 import * as fs from 'fs/promises';
-import * as fsSync from 'fs';
 import * as path from 'path';
 import * as csv from 'csv-parse/sync';
 import * as csvStringify from 'csv-stringify/sync';

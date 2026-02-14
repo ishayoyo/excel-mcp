@@ -1,9 +1,10 @@
 {
   "name": "excel-csv-mcp-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "🚀 The Ultimate Data Science MCP Server - Advanced statistical analysis, ML preprocessing, and data visualization for Excel & CSV files",
   "main": "dist/index.js",
   "bin": {
+    "excel-csv-mcp-server": "dist/index.js",
     "excel-csv-mcp": "dist/index.js"
   },
   "scripts": {

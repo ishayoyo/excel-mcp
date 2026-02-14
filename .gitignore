@@ -24,6 +24,7 @@ coverage/
 **/settings.local.json
 PHASE1_IMPLEMENTATION.md
 ULTIMATE_EXCEL_MCP_ROADMAP.md
+SHALTI_PROJECT/
 
 # Security - Never commit API keys
 start-with-deepseek.js.backup

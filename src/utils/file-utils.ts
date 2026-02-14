@@ -1,9 +1,13 @@
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as path from 'path';
 import * as csv from 'csv-parse/sync';
 import * as csvStringify from 'csv-stringify/sync';
 import ExcelJS from 'exceljs';
 import { CellAddress, FileInfo } from '../types/shared';
+
+// File size threshold for streaming reads (200 KB)
+const LARGE_FILE_THRESHOLD = 200 * 1024;
 
 export function parseA1Notation(a1: string): CellAddress {
   const match = a1.match(/^([A-Z]+)(\d+)$/);
@@ -88,6 +92,14 @@ export async function readFileContentWithWarnings(filePath: string, sheet?: stri
       throw new Error(`Failed to parse CSV file: ${parseError instanceof Error ? parseError.message : 'Unknown parsing error'}`);
     }
   } else if (ext === '.xlsx' || ext === '.xls') {
+    const stats = await fs.stat(absolutePath);
+    const isLargeFile = stats.size > LARGE_FILE_THRESHOLD;
+
+    if (isLargeFile) {
+      // Use streaming reader for large files to avoid memory issues
+      return readExcelStreaming(absolutePath, sheet, warnings);
+    }
+
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(absolutePath);
     const sheetName = sheet || workbook.worksheets[0]?.name;
@@ -98,9 +110,10 @@ export async function readFileContentWithWarnings(filePath: string, sheet?: stri
     }
 
     const data: any[][] = [];
+    const colCount = worksheet.columnCount;
     worksheet.eachRow((row, rowNumber) => {
-      const rowData: any[] = [];
-      row.eachCell((cell, colNumber) => {
+      const rowData: any[] = new Array(colCount).fill('');
+      row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
         rowData[colNumber - 1] = cell.value || '';
       });
       data.push(rowData);
@@ -110,6 +123,102 @@ export async function readFileContentWithWarnings(filePath: string, sheet?: stri
   } else {
     throw new Error('Unsupported file format. Please use .csv, .xlsx, or .xls files.');
   }
+}
+
+async function readExcelStreaming(absolutePath: string, sheet?: string, warnings: string[] = []): Promise<FileReadResult> {
+  const data: any[][] = [];
+  let targetSheet = sheet || null;
+  let sheetFound = false;
+  let maxCol = 0;
+
+  const workbookReader = new ExcelJS.stream.xlsx.WorkbookReader(absolutePath, {
+    entries: 'emit',
+    sharedStrings: 'cache',
+    worksheets: 'emit',
+  });
+
+  for await (const worksheetReader of workbookReader) {
+    const sheetName = (worksheetReader as any).name;
+
+    if (!targetSheet) {
+      targetSheet = sheetName;
+    }
+
+    if (sheetName !== targetSheet) {
+      continue;
+    }
+
+    sheetFound = true;
+
+    for await (const row of worksheetReader) {
+      const rowData: any[] = [];
+      const values = row.values;
+
+      if (Array.isArray(values)) {
+        for (let i = 1; i < values.length; i++) {
+          const val = values[i];
+          rowData[i - 1] = val != null ? val : '';
+        }
+        if (values.length - 1 > maxCol) {
+          maxCol = values.length - 1;
+        }
+      }
+
+      data.push(rowData);
+    }
+  }
+
+  if (!sheetFound) {
+    throw new Error(`Sheet "${targetSheet}" not found in workbook`);
+  }
+
+  // Normalize row lengths so all rows have the same number of columns
+  for (let i = 0; i < data.length; i++) {
+    while (data[i].length < maxCol) {
+      data[i].push('');
+    }
+  }
+
+  warnings.push(`Large file read using streaming mode for stability`);
+  return { data, warnings: warnings.length > 0 ? warnings : undefined };
+}
+
+async function getExcelInfoStreaming(absolutePath: string, sheet?: string): Promise<{ totalRows: number; totalColumns: number; sheets: string[] }> {
+  const sheets: string[] = [];
+  let targetSheet = sheet || null;
+  let totalRows = 0;
+  let totalColumns = 0;
+
+  const workbookReader = new ExcelJS.stream.xlsx.WorkbookReader(absolutePath, {
+    entries: 'emit',
+    sharedStrings: 'cache',
+    worksheets: 'emit',
+  });
+
+  for await (const worksheetReader of workbookReader) {
+    const sheetName = (worksheetReader as any).name;
+    sheets.push(sheetName);
+
+    if (!targetSheet) {
+      targetSheet = sheetName;
+    }
+
+    if (sheetName !== targetSheet) {
+      // Still need to consume the iterator to move to next sheet
+      for await (const _row of worksheetReader) { /* skip */ }
+      continue;
+    }
+
+    for await (const row of worksheetReader) {
+      totalRows++;
+      const values = row.values;
+      if (Array.isArray(values) && values.length - 1 > totalColumns) {
+        totalColumns = values.length - 1;
+      }
+    }
+  }
+
+  return { totalRows, totalColumns, sheets };
 }
 
 export function detectDataTypes(data: any[][]): Record<string, 'number' | 'text' | 'date' | 'formula'> {
@@ -165,15 +274,25 @@ export async function getFileInfo(filePath: string, sheet?: string): Promise<Fil
       totalColumns = firstLine.length;
     }
   } else if (ext === '.xlsx' || ext === '.xls') {
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(absolutePath);
+    const isLargeFile = stats.size > LARGE_FILE_THRESHOLD;
 
-    sheets = workbook.worksheets.map(ws => ws.name);
-    const worksheet = workbook.getWorksheet(sheet || sheets[0]);
+    if (isLargeFile) {
+      // Use streaming to get metadata without loading entire file into memory
+      const info = await getExcelInfoStreaming(absolutePath, sheet);
+      totalRows = info.totalRows;
+      totalColumns = info.totalColumns;
+      sheets = info.sheets;
+    } else {
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(absolutePath);
 
-    if (worksheet) {
-      totalRows = worksheet.rowCount;
-      totalColumns = worksheet.columnCount;
+      sheets = workbook.worksheets.map(ws => ws.name);
+      const worksheet = workbook.getWorksheet(sheet || sheets[0]);
+
+      if (worksheet) {
+        totalRows = worksheet.rowCount;
+        totalColumns = worksheet.columnCount;
+      }
     }
   }
 

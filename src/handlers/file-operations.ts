@@ -1,5 +1,5 @@
 import { ToolResponse, ToolArgs } from '../types/shared';
-import { parseA1Notation } from '../utils/file-utils';
+import { parseA1Notation, columnIndexToLetter } from '../utils/file-utils';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as csvStringify from 'csv-stringify/sync';
@@ -529,7 +529,7 @@ export class FileOperationsHandler {
 
         columnInfo.push({
           columnIndex: colIndex,
-          columnLetter: this.getColumnLetter(colIndex),
+          columnLetter: columnIndexToLetter(colIndex - 1),
           maxContentLength: Math.round(maxContentLength * 100) / 100,
           finalWidth: Math.round(optimalWidth * 100) / 100,
         });
@@ -566,15 +566,4 @@ export class FileOperationsHandler {
     };
   }
 
-  private getColumnLetter(columnIndex: number): string {
-    let result = '';
-    let index = columnIndex - 1; // Convert to 0-based
-
-    while (index >= 0) {
-      result = String.fromCharCode(65 + (index % 26)) + result;
-      index = Math.floor(index / 26) - 1;
-    }
-
-    return result;
-  }
 }

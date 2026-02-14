@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as csv from 'csv-parse/sync';
+import * as csvStringify from 'csv-stringify/sync';
 import ExcelJS from 'exceljs';
 import { CellAddress, FileInfo } from '../types/shared';
 
@@ -214,4 +215,44 @@ export function validateChunkBoundaries(data: any[][], offset: number, limit: nu
   const validLimit = Math.min(limit, remainingRows);
 
   return { validOffset, validLimit };
+}
+
+/**
+ * Convert a 0-based column index to an Excel-style column letter (A, B, ..., Z, AA, AB, ...).
+ */
+export function columnIndexToLetter(colIndex: number): string {
+  let result = '';
+  let index = colIndex;
+
+  while (index >= 0) {
+    result = String.fromCharCode(65 + (index % 26)) + result;
+    index = Math.floor(index / 26) - 1;
+  }
+
+  return result;
+}
+
+/**
+ * Write data to a CSV or Excel file. Mirrors readFileContent.
+ * @param filePath - Path to the output file (.csv, .xlsx, or .xls)
+ * @param data - 2D array of data (including headers as the first row)
+ * @param sheet - Sheet name for Excel files (defaults to "Sheet1")
+ */
+export async function writeFileContent(filePath: string, data: any[][], sheet?: string): Promise<void> {
+  const ext = path.extname(filePath).toLowerCase();
+  const absolutePath = path.resolve(filePath);
+
+  if (ext === '.csv') {
+    const csvContent = csvStringify.stringify(data);
+    await fs.writeFile(absolutePath, csvContent, 'utf-8');
+  } else if (ext === '.xlsx' || ext === '.xls') {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(sheet || 'Sheet1');
+    data.forEach((row: any[]) => {
+      worksheet.addRow(row);
+    });
+    await workbook.xlsx.writeFile(absolutePath);
+  } else {
+    throw new Error('Unsupported file format. Please use .csv, .xlsx, or .xls files.');
+  }
 }

@@ -1,5 +1,5 @@
 import { ToolResponse, ToolArgs } from '../types/shared';
-import { readFileContent, detectDataTypes } from '../utils/file-utils';
+import { readFileContent, detectDataTypes, writeFileContent } from '../utils/file-utils';
 
 export class ExcelWorkflowHandler {
   constructor() {
@@ -11,7 +11,7 @@ export class ExcelWorkflowHandler {
    */
   async findDuplicates(args: ToolArgs): Promise<ToolResponse> {
     try {
-      const { filePath, columns = [], action = 'report_only', keepFirst = true, sheet } = args;
+      const { filePath, columns = [], action = 'report_only', keepFirst = true, sheet, outputPath } = args;
 
       if (!filePath) {
         return {
@@ -98,7 +98,7 @@ export class ExcelWorkflowHandler {
         resultData = cleanedData;
 
         // Save the cleaned file back
-        // This would need file writing logic similar to your existing handlers
+        await writeFileContent(outputPath || filePath, resultData, sheet);
       }
 
       const result = {
@@ -146,7 +146,7 @@ export class ExcelWorkflowHandler {
    */
   async cleanData(args: ToolArgs): Promise<ToolResponse> {
     try {
-      const { filePath, operations = [], preview = false, sheet } = args;
+      const { filePath, operations = [], preview = false, sheet, outputPath } = args;
 
       if (!filePath) {
         return {
@@ -203,7 +203,14 @@ export class ExcelWorkflowHandler {
           case 'fix_currency':
             workingData = this.fixCurrency(workingData, changes);
             break;
+          default:
+            throw new Error(`Unknown cleaning operation: ${operation}`);
         }
+      }
+
+      // Write back cleaned data unless in preview mode
+      if (!preview) {
+        await writeFileContent(outputPath || filePath, workingData, sheet);
       }
 
       const result = {
@@ -254,7 +261,8 @@ export class ExcelWorkflowHandler {
         fuzzyMatch = false,
         handleErrors = true,
         sourceSheet,
-        lookupSheet
+        lookupSheet,
+        outputPath
       } = args;
 
       if (!sourceFile || !lookupFile || !lookupColumn) {
@@ -313,25 +321,72 @@ export class ExcelWorkflowHandler {
       // Create lookup map
       const lookupMap = new Map<string, any[]>();
       lookupRows.forEach((row: any[]) => {
-        const key = String(row[lookupColIndex] || '').toLowerCase();
+        const key = String(row[lookupColIndex] || '').toLowerCase().trim();
         const values = returnColIndices.map((i: number) => row[i]);
         lookupMap.set(key, values);
       });
+
+      // Find source lookup column index
+      const sourceLookupColIndex = typeof lookupColumn === 'number' ? lookupColumn : sourceHeaders.indexOf(lookupColumn);
+      if (sourceLookupColIndex === -1) {
+        throw new Error(`Lookup column "${lookupColumn}" not found in source file`);
+      }
+
+      // Build merged result
+      const returnColumnNames = returnColIndices.map((i: number) => lookupHeaders[i]);
+      const mergedHeaders = [...sourceHeaders, ...returnColumnNames];
+      const mergedData: any[][] = [mergedHeaders];
+
+      let matchedCount = 0;
+      let unmatchedCount = 0;
+
+      const sourceRows = sourceData.slice(1);
+      for (const row of sourceRows) {
+        const sourceKey = String(row[sourceLookupColIndex] || '').toLowerCase().trim();
+        let lookupValues: any[] | undefined;
+
+        if (fuzzyMatch) {
+          // Fuzzy: find first key that contains or is contained by the source key
+          for (const [mapKey, mapValues] of lookupMap.entries()) {
+            if (mapKey.includes(sourceKey) || sourceKey.includes(mapKey)) {
+              lookupValues = mapValues;
+              break;
+            }
+          }
+        } else {
+          lookupValues = lookupMap.get(sourceKey);
+        }
+
+        if (lookupValues) {
+          mergedData.push([...row, ...lookupValues]);
+          matchedCount++;
+        } else {
+          const fallback = handleErrors ? returnColIndices.map(() => '') : returnColIndices.map(() => '#N/A');
+          mergedData.push([...row, ...fallback]);
+          unmatchedCount++;
+        }
+      }
+
+      // Write merged result if outputPath is provided
+      if (outputPath) {
+        await writeFileContent(outputPath, mergedData);
+      }
 
       const result = {
         success: true,
         operation: 'vlookup_helper',
         summary: {
-          sourceRows: sourceData.length - 1,
+          sourceRows: sourceRows.length,
           lookupRows: lookupRows.length,
           lookupColumn: lookupHeaders[lookupColIndex],
-          returnColumns: returnColIndices.map((i: number) => lookupHeaders[i]),
+          returnColumns: returnColumnNames,
           fuzzyMatch,
           handleErrors
         },
-        lookupMap: Object.fromEntries(Array.from(lookupMap.entries()).slice(0, 10)), // Preview
-        matchedCount: 0, // Would be calculated during actual lookup
-        unmatchedCount: 0 // Would be calculated during actual lookup
+        matchedCount,
+        unmatchedCount,
+        outputPath: outputPath || null,
+        preview: mergedData.slice(0, 6) // Header + first 5 rows
       };
 
       return {
@@ -394,7 +449,7 @@ export class ExcelWorkflowHandler {
   }
 
   private standardizePhoneFormats(data: any[][], changes: any[]): any[][] {
-    const phoneRegex = /[\d\s\-\(\)\.]+/;
+    const phoneRegex = /^[\d\s\-\(\)\.]{7,}$/;
     return data.map((row, rowIndex) =>
       row.map((cell, colIndex) => {
         if (typeof cell === 'string' && phoneRegex.test(cell)) {
@@ -419,8 +474,45 @@ export class ExcelWorkflowHandler {
   }
 
   private fixDates(data: any[][], changes: any[]): any[][] {
-    // Simple date fixing - could be enhanced
-    return data;
+    const datePatterns: Array<{ regex: RegExp; parse: (m: RegExpMatchArray) => { y: string; m: string; d: string } | null }> = [
+      // MM/DD/YYYY or MM-DD-YYYY
+      { regex: /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/, parse: (m) => ({ m: m[1], d: m[2], y: m[3] }) },
+      // DD.MM.YYYY
+      { regex: /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/, parse: (m) => ({ d: m[1], m: m[2], y: m[3] }) },
+      // YYYY/MM/DD
+      { regex: /^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/, parse: (m) => ({ y: m[1], m: m[2], d: m[3] }) },
+    ];
+
+    return data.map((row, rowIndex) =>
+      row.map((cell, colIndex) => {
+        if (rowIndex === 0 || typeof cell !== 'string') return cell;
+        const trimmed = cell.trim();
+        for (const pattern of datePatterns) {
+          const match = trimmed.match(pattern.regex);
+          if (match) {
+            const parts = pattern.parse(match);
+            if (!parts) continue;
+            const month = parseInt(parts.m, 10);
+            const day = parseInt(parts.d, 10);
+            const year = parseInt(parts.y, 10);
+            if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+              const standardized = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              if (standardized !== cell) {
+                changes.push({
+                  operation: 'fix_dates',
+                  row: rowIndex,
+                  col: colIndex,
+                  before: cell,
+                  after: standardized
+                });
+              }
+              return standardized;
+            }
+          }
+        }
+        return cell;
+      })
+    );
   }
 
   private standardizeNames(data: any[][], changes: any[]): any[][] {

@@ -1,5 +1,5 @@
 import { ToolResponse, ToolArgs } from '../types/shared';
-import { readFileContent, readFileContentWithWarnings, parseA1Notation, validateChunkBoundaries, calculateOptimalChunkSize, getFileInfo } from '../utils/file-utils';
+import { readFileContent, readFileContentWithWarnings, parseA1Notation, validateChunkBoundaries, calculateOptimalChunkSize, getFileInfo, columnIndexToLetter } from '../utils/file-utils';
 
 export class DataOperationsHandler {
   async readFile(args: ToolArgs): Promise<ToolResponse> {
@@ -278,7 +278,7 @@ export class DataOperationsHandler {
             : cellValue.toLowerCase().includes(searchValue.toLowerCase());
 
           if (isMatch) {
-            const colLetter = String.fromCharCode(65 + (col % 26));
+            const colLetter = columnIndexToLetter(col);
             matches.push({
               cell: `${colLetter}${row + 1}`,
               value: data[row][col],

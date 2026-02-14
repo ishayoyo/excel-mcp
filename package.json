@@ -43,8 +43,22 @@
     "data-profiling",
     "claude-desktop"
   ],
-  "author": "",
+  "author": "ishayoyo <ishay.almuly@gmail.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ishayoyo/excel-mcp.git"
+  },
+  "homepage": "https://github.com/ishayoyo/excel-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/ishayoyo/excel-mcp/issues"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    ".env.example"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.13.0",
     "@types/node": "^24.0.3",

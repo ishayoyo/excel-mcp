@@ -57,7 +57,7 @@ export class AnalyticsHandler {
     const iqr = q3 - q1;
 
     // Skewness (simplified Pearson's method)
-    const skewness = 3 * (mean - median) / stdDev;
+    const skewness = stdDev !== 0 ? 3 * (mean - median) / stdDev : 0;
 
     return {
       content: [
@@ -84,7 +84,7 @@ export class AnalyticsHandler {
                 iqr
               },
               skewness: Math.round(skewness * 10000) / 10000,
-              coefficientOfVariation: Math.round((stdDev / mean) * 100 * 100) / 100
+              coefficientOfVariation: mean !== 0 ? Math.round((stdDev / mean) * 100 * 100) / 100 : null
             }
           }, null, 2),
         },

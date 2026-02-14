@@ -21,6 +21,11 @@ interface FinancialModel {
   scenarios: ScenarioData[];
 }
 
+function safeDivide(numerator: number, denominator: number): number | null {
+  if (denominator === 0) return null;
+  return numerator / denominator;
+}
+
 export class FinancialAnalysisHandler {
 
   // Pre-built financial models for common CFO tasks
@@ -260,22 +265,22 @@ export class FinancialAnalysisHandler {
         operatingIncome: this.findValue(headers, values, ['operating income', 'operatingIncome'])
       };
 
-      // Calculate ratios
-      const ratios = {
-        currentRatio: financials.currentAssets / financials.currentLiabilities,
-        quickRatio: (financials.currentAssets - financials.inventory) / financials.currentLiabilities,
-        debtToEquity: financials.totalDebt / financials.totalEquity,
-        returnOnEquity: financials.netIncome / financials.totalEquity,
-        returnOnAssets: financials.netIncome / financials.totalAssets,
-        grossMargin: financials.grossProfit / financials.revenue,
-        operatingMargin: financials.operatingIncome / financials.revenue
+      // Calculate ratios (safe division to handle zero denominators)
+      const ratios: Record<string, number | null> = {
+        currentRatio: safeDivide(financials.currentAssets, financials.currentLiabilities),
+        quickRatio: safeDivide(financials.currentAssets - financials.inventory, financials.currentLiabilities),
+        debtToEquity: safeDivide(financials.totalDebt, financials.totalEquity),
+        returnOnEquity: safeDivide(financials.netIncome, financials.totalEquity),
+        returnOnAssets: safeDivide(financials.netIncome, financials.totalAssets),
+        grossMargin: safeDivide(financials.grossProfit, financials.revenue),
+        operatingMargin: safeDivide(financials.operatingIncome, financials.revenue)
       };
 
       // Industry benchmarks
-      const benchmarks = {
-        currentRatio: { range: '1.2 - 2.0', status: this.evaluateBenchmark(ratios.currentRatio, 1.2, 2.0) },
-        quickRatio: { range: '0.8 - 1.5', status: this.evaluateBenchmark(ratios.quickRatio, 0.8, 1.5) },
-        debtToEquity: { range: '0.3 - 1.5', status: this.evaluateBenchmark(ratios.debtToEquity, 0.3, 1.5) }
+      const benchmarks: Record<string, { range: string; status: string }> = {
+        currentRatio: { range: '1.2 - 2.0', status: ratios.currentRatio !== null ? this.evaluateBenchmark(ratios.currentRatio, 1.2, 2.0) : 'N/A (insufficient data)' },
+        quickRatio: { range: '0.8 - 1.5', status: ratios.quickRatio !== null ? this.evaluateBenchmark(ratios.quickRatio, 0.8, 1.5) : 'N/A (insufficient data)' },
+        debtToEquity: { range: '0.3 - 1.5', status: ratios.debtToEquity !== null ? this.evaluateBenchmark(ratios.debtToEquity, 0.3, 1.5) : 'N/A (insufficient data)' }
       };
 
       return {
@@ -285,7 +290,7 @@ export class FinancialAnalysisHandler {
             success: true,
             analysis: 'Financial Ratio Analysis',
             ratios: Object.fromEntries(
-              Object.entries(ratios).map(([key, value]) => [key, Math.round(value * 100) / 100])
+              Object.entries(ratios).map(([key, value]) => [key, value !== null ? Math.round(value * 100) / 100 : null])
             ),
             benchmarks,
             interpretation: this.generateRatioInterpretation(ratios, benchmarks)
@@ -380,21 +385,41 @@ export class FinancialAnalysisHandler {
     const concerns = [];
     const strengths = [];
 
-    if (ratios.currentRatio < 1.2) concerns.push('Liquidity may be tight');
-    if (ratios.debtToEquity > 1.5) concerns.push('High leverage');
-    if (ratios.returnOnEquity > 0.15) strengths.push('Strong profitability');
+    if (ratios.currentRatio !== null && ratios.currentRatio < 1.2) concerns.push('Liquidity may be tight');
+    if (ratios.debtToEquity !== null && ratios.debtToEquity > 1.5) concerns.push('High leverage');
+    if (ratios.returnOnEquity !== null && ratios.returnOnEquity > 0.15) strengths.push('Strong profitability');
 
-    return `Analysis: ${strengths.concat(concerns).join(', ')}`;
+    const points = strengths.concat(concerns);
+    return points.length > 0 ? `Analysis: ${points.join(', ')}` : 'Analysis: Insufficient data for interpretation';
   }
 
   private applyScenarioAssumptions(data: any[][], assumptions: Record<string, number>): any[][] {
-    // Simplified scenario application - in reality this would be much more sophisticated
-    return data.map(row => row.map(cell => {
-      if (typeof cell === 'number' && assumptions[cell.toString()]) {
-        return cell * (1 + assumptions[cell.toString()]);
+    if (data.length === 0) return data;
+
+    const headers = data[0];
+    // Map assumption keys (column headers) to column indices
+    const columnMultipliers = new Map<number, number>();
+    for (const [key, multiplier] of Object.entries(assumptions)) {
+      const colIndex = headers.findIndex((h: any) => String(h).toLowerCase() === key.toLowerCase());
+      if (colIndex !== -1) {
+        columnMultipliers.set(colIndex, multiplier);
       }
-      return cell;
-    }));
+    }
+
+    return data.map((row, rowIndex) => {
+      if (rowIndex === 0) return [...row]; // Preserve headers
+      return row.map((cell, colIndex) => {
+        const multiplier = columnMultipliers.get(colIndex);
+        if (multiplier !== undefined && typeof cell === 'number') {
+          return cell * (1 + multiplier);
+        }
+        // Also handle numeric strings
+        if (multiplier !== undefined && typeof cell === 'string' && !isNaN(Number(cell)) && cell.trim() !== '') {
+          return Number(cell) * (1 + multiplier);
+        }
+        return cell;
+      });
+    });
   }
 
   private calculateScenarioMetrics(data: any[][], assumptions: Record<string, number>): Record<string, number> {

@@ -1026,7 +1026,7 @@ class ExcelCSVServer {
                       type: 'string',
                       enum: ['equals', 'contains', 'greater_than', 'less_than', 'not_equals']
                     },
-                    value: { type: ['string', 'number'] }
+                    value: { type: 'string', description: 'Value to compare against (numeric strings accepted)' }
                   },
                   required: ['column', 'condition', 'value']
                 }
@@ -1057,7 +1057,7 @@ class ExcelCSVServer {
                       type: 'string',
                       enum: ['equals', 'contains', 'greater_than', 'less_than', 'not_equals']
                     },
-                    value: { type: ['string', 'number'] }
+                    value: { type: 'string', description: 'Value to compare against (numeric strings accepted)' }
                   },
                   required: ['column', 'condition', 'value']
                 }
@@ -1108,6 +1108,10 @@ class ExcelCSVServer {
               sheet: {
                 type: 'string',
                 description: 'Sheet name for Excel files (optional)'
+              },
+              outputPath: {
+                type: 'string',
+                description: 'Output file path for cleaned data (optional, defaults to overwriting source file)'
               }
             },
             required: ['filePath']
@@ -1142,6 +1146,10 @@ class ExcelCSVServer {
               sheet: {
                 type: 'string',
                 description: 'Sheet name for Excel files (optional)'
+              },
+              outputPath: {
+                type: 'string',
+                description: 'Output file path for cleaned data (optional, defaults to overwriting source file)'
               }
             },
             required: ['filePath']
@@ -1185,6 +1193,10 @@ class ExcelCSVServer {
               lookupSheet: {
                 type: 'string',
                 description: 'Sheet name for lookup Excel file (optional)'
+              },
+              outputPath: {
+                type: 'string',
+                description: 'Output file path for merged lookup result (optional)'
               }
             },
             required: ['sourceFile', 'lookupFile', 'lookupColumn']

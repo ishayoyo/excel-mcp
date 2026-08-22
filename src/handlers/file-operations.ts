@@ -1,5 +1,6 @@
 import { ToolResponse, ToolArgs } from '../types/shared';
 import { parseA1Notation, columnIndexToLetter } from '../utils/file-utils';
+import { resolveSafePath, sanitizeCsvRows } from '../utils/security';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as csvStringify from 'csv-stringify/sync';
@@ -9,7 +10,7 @@ export class FileOperationsHandler {
   async writeFile(args: ToolArgs): Promise<ToolResponse> {
     const { filePath, data, headers, sheet = 'Sheet1', sheets } = args;
     const ext = path.extname(filePath).toLowerCase();
-    const absolutePath = path.resolve(filePath);
+    const absolutePath = resolveSafePath(filePath);
 
     // Multi-sheet mode for Excel files
     if (sheets && Array.isArray(sheets)) {
@@ -79,7 +80,7 @@ export class FileOperationsHandler {
 
     if (ext === '.csv') {
       // Write CSV file
-      const csvContent = csvStringify.stringify(fullData);
+      const csvContent = csvStringify.stringify(sanitizeCsvRows(fullData));
       await fs.writeFile(absolutePath, csvContent, 'utf-8');
     } else if (ext === '.xlsx' || ext === '.xls') {
       // Write Excel file
@@ -113,7 +114,7 @@ export class FileOperationsHandler {
   async addSheet(args: ToolArgs): Promise<ToolResponse> {
     const { filePath, sheetName, data, headers, position } = args;
     const ext = path.extname(filePath).toLowerCase();
-    const absolutePath = path.resolve(filePath);
+    const absolutePath = resolveSafePath(filePath);
 
     if (ext !== '.xlsx' && ext !== '.xls') {
       throw new Error('add_sheet only works with Excel files (.xlsx or .xls)');
@@ -171,7 +172,7 @@ export class FileOperationsHandler {
   async writeMultiSheet(args: ToolArgs): Promise<ToolResponse> {
     const { filePath, sheets, sheetReferences = true } = args;
     const ext = path.extname(filePath).toLowerCase();
-    const absolutePath = path.resolve(filePath);
+    const absolutePath = resolveSafePath(filePath);
 
     if (ext !== '.xlsx' && ext !== '.xls') {
       throw new Error('write_multi_sheet only works with Excel files (.xlsx or .xls)');
@@ -292,7 +293,7 @@ export class FileOperationsHandler {
   async formatCells(args: ToolArgs): Promise<ToolResponse> {
     const { filePath, range, styling, sheet } = args;
     const ext = path.extname(filePath).toLowerCase();
-    const absolutePath = path.resolve(filePath);
+    const absolutePath = resolveSafePath(filePath);
 
     if (ext !== '.xlsx' && ext !== '.xls') {
       throw new Error('Cell formatting only works with Excel files (.xlsx or .xls)');
@@ -421,7 +422,7 @@ export class FileOperationsHandler {
   async autoFitColumns(args: ToolArgs): Promise<ToolResponse> {
     const { filePath, sheet, columns, minWidth = 10, maxWidth = 60, padding = 2 } = args;
     const ext = path.extname(filePath).toLowerCase();
-    const absolutePath = path.resolve(filePath);
+    const absolutePath = resolveSafePath(filePath);
 
     if (ext !== '.xlsx' && ext !== '.xls') {
       throw new Error('Auto-fit columns only works with Excel files (.xlsx or .xls)');

@@ -6,6 +6,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as csv from 'csv-parse/sync';
 import ExcelJS from 'exceljs';
+import { resolveSafePath } from '../../utils/security';
 import { FileValidationContext, ValidationContext, DetectedRelationship, ColumnStats } from './validation-result';
 
 export class ValidationContextBuilder {
@@ -56,7 +57,7 @@ export class ValidationContextBuilder {
 
   private async readFileContent(filePath: string, sheet?: string): Promise<any[][]> {
     const ext = path.extname(filePath).toLowerCase();
-    const absolutePath = path.resolve(filePath);
+    const absolutePath = resolveSafePath(filePath);
 
     try {
       await fs.access(absolutePath);

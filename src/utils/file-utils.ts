@@ -4,6 +4,7 @@ import * as csv from 'csv-parse/sync';
 import * as csvStringify from 'csv-stringify/sync';
 import ExcelJS from 'exceljs';
 import { CellAddress, FileInfo } from '../types/shared';
+import { resolveSafePath, sanitizeCsvRows } from './security';
 
 // File size threshold for streaming reads (200 KB)
 const LARGE_FILE_THRESHOLD = 200 * 1024;
@@ -35,7 +36,7 @@ export async function readFileContent(filePath: string, sheet?: string): Promise
 
 export async function readFileContentWithWarnings(filePath: string, sheet?: string): Promise<FileReadResult> {
   const ext = path.extname(filePath).toLowerCase();
-  const absolutePath = path.resolve(filePath);
+  const absolutePath = resolveSafePath(filePath);
   const warnings: string[] = [];
 
   try {
@@ -252,7 +253,7 @@ export function detectDataTypes(data: any[][]): Record<string, 'number' | 'text'
 
 // Chunked reading utilities
 export async function getFileInfo(filePath: string, sheet?: string): Promise<FileInfo> {
-  const absolutePath = path.resolve(filePath);
+  const absolutePath = resolveSafePath(filePath);
   const stats = await fs.stat(absolutePath);
   const ext = path.extname(filePath).toLowerCase();
 
@@ -358,10 +359,10 @@ export function columnIndexToLetter(colIndex: number): string {
  */
 export async function writeFileContent(filePath: string, data: any[][], sheet?: string): Promise<void> {
   const ext = path.extname(filePath).toLowerCase();
-  const absolutePath = path.resolve(filePath);
+  const absolutePath = resolveSafePath(filePath);
 
   if (ext === '.csv') {
-    const csvContent = csvStringify.stringify(data);
+    const csvContent = csvStringify.stringify(sanitizeCsvRows(data));
     await fs.writeFile(absolutePath, csvContent, 'utf-8');
   } else if (ext === '.xlsx' || ext === '.xls') {
     const workbook = new ExcelJS.Workbook();

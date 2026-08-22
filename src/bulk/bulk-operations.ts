@@ -7,6 +7,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as csv from 'csv-parse/sync';
 import ExcelJS from 'exceljs';
+import { resolveSafePath, sanitizeCsvRows } from '../utils/security';
 
 export interface BulkAggregateArgs {
   filePaths: string[];
@@ -186,7 +187,7 @@ export class BulkOperations {
 
   private async readFileContent(filePath: string, sheet?: string): Promise<any[][]> {
     const ext = path.extname(filePath).toLowerCase();
-    const absolutePath = path.resolve(filePath);
+    const absolutePath = resolveSafePath(filePath);
 
     try {
       await fs.access(absolutePath);
@@ -389,18 +390,19 @@ export class BulkOperations {
 
     // Write consolidated results
     const ext = path.extname(outputPath).toLowerCase();
+    const absoluteOutputPath = resolveSafePath(outputPath);
 
     if (ext === '.csv') {
       const csvStringify = await import('csv-stringify/sync');
-      const csvContent = csvStringify.stringify(allData);
-      await fs.writeFile(outputPath, csvContent, 'utf-8');
+      const csvContent = csvStringify.stringify(sanitizeCsvRows(allData));
+      await fs.writeFile(absoluteOutputPath, csvContent, 'utf-8');
     } else if (ext === '.xlsx' || ext === '.xls') {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Filtered_Results');
       allData.forEach((row: any[]) => {
         worksheet.addRow(row);
       });
-      await workbook.xlsx.writeFile(outputPath);
+      await workbook.xlsx.writeFile(absoluteOutputPath);
     } else {
       throw new Error('Unsupported output format. Use .csv, .xlsx, or .xls');
     }
